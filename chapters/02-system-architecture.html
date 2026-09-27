@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>02 System architecture — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 2 · EDB: System Architecture</p>
+      <h1>Processes, memory, MVCC, WAL, checkpoints</h1>
+      <p class="lede">This is the chapter that turns “Postgres is a server” into “I can explain why a commit is durable, why readers do not block writers, and why disk fills with WAL.” You still do not install PostgreSQL here. After Chapter 3 you come back and look at the live processes.</p>
+
+      <h2>1. What you need to know</h2>
+      <p>One cluster has:</p>
+      <ul>
+        <li>A <strong>supervisor</strong> <code>postgres</code> process (still often called postmaster).</li>
+        <li><strong>Backend</strong> processes — one per client connection.</li>
+        <li><strong>Background processes</strong> — checkpointer, background writer, WAL writer, autovacuum launcher, stats collector / logger, and in PostgreSQL 18 I/O workers when <code>io_method = worker</code>.</li>
+        <li><strong>Shared memory</strong> — especially <code>shared_buffers</code> (cached 8 kB pages).</li>
+        <li><strong>WAL</strong> in <code>pg_wal</code> — the durable diary of changes.</li>
+        <li><strong>Data files</strong> — heap and index pages; they may be dirty in memory until a checkpoint.</li>
+      </ul>
+      <p>MVCC means readers see a snapshot. Updates create new row versions. Dead versions stay until <code>VACUUM</code> (Chapter 13).</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row">
+          <div class="box teal">Client</div>
+        </div>
+        <div class="arrow">▼</div>
+        <div class="row">
+          <div class="box purple">Supervisor postgres</div>
+        </div>
+        <div class="arrow">▼ forks</div>
+        <div class="row">
+          <div class="box amber">Backend</div>
+          <div class="box pink">checkpointer</div>
+          <div class="box green">bgwriter</div>
+          <div class="box blue">walwriter</div>
+        </div>
+        <div class="arrow">▼ share</div>
+        <div class="row">
+          <div class="box slate">shared_buffers<small>dirty + clean pages</small></div>
+          <div class="box red">WAL / pg_wal<small>must hit disk at commit</small></div>
+        </div>
+        <div class="arrow">▼ later</div>
+        <div class="row">
+          <div class="box green wide">Data files in PGDATA/base<small>heap and indexes, usually 8 kB pages</small></div>
+        </div>
+      </div>
+
+      <h3>WAL vs checkpoint</h3>
+      <div class="diag">
+        <div class="row">
+          <div class="box teal">BEGIN / DML</div>
+        </div>
+        <div class="arrow">▼</div>
+        <div class="row">
+          <div class="box red">Write WAL record</div>
+          <div class="box amber">Change page in shared_buffers</div>
+        </div>
+        <div class="arrow">▼ COMMIT</div>
+        <div class="row">
+          <div class="box red wide">Flush WAL to disk — now the commit is durable</div>
+        </div>
+        <div class="arrow">▼ later, checkpoint</div>
+        <div class="row">
+          <div class="box green wide">Flush dirty pages to data files</div>
+        </div>
+        <div class="note">Crash recovery: replay WAL from the last checkpoint. WAL is the diary. Checkpoint is the photo of memory.</div>
+      </div>
+
+      <h3>MVCC visibility</h3>
+      <div class="diag">
+        <div class="row">
+          <div class="box blue">users.id=1 version 1<small>xmin=100 · still visible to old snapshots</small></div>
+          <div class="box pink">users.id=1 version 2<small>xmin=200 · created by UPDATE</small></div>
+        </div>
+        <div class="row">
+          <div class="box amber">Transaction A (xid 100 snapshot)</div>
+          <div class="box teal">Transaction B (xid 200)</div>
+        </div>
+        <div class="note">B’s UPDATE does not overwrite A’s view. Version 1 becomes dead when no snapshot needs it. VACUUM reclaims it.</div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <h3>Why shared buffers exist</h3>
+      <p>Backends do not read every row from disk on every query. They pin 8 kB pages in <code>shared_buffers</code>. A write first updates the in-memory page and appends WAL. The data file can lag. That is why “the table file looks old” after a commit is normal.</p>
+      <h3>Why WAL exists</h3>
+      <p>If PostgreSQL wrote data pages first and crashed mid-write, you would have torn pages and no way to know the commit order. WAL is sequential and flushed on commit (when <code>synchronous_commit</code> is on, the default). Recovery replays WAL. Official name: Write-Ahead Log. SQL Server analogue: the transaction log — similar job, different file layout and tools.</p>
+      <h3>Checkpointer vs background writer</h3>
+      <p>The <strong>checkpointer</strong> starts a checkpoint: flush dirty buffers so a new recovery starting point exists, then update control data. The <strong>background writer</strong> slowly writes dirty buffers between checkpoints so backends are less likely to stall finding a free buffer. Official docs: bgwriter can increase total I/O because a hot page may be written more than once per checkpoint interval.</p>
+      <h3>MVCC vs SQL Server</h3>
+      <p>PostgreSQL writers create new versions; readers do not take shared locks on rows for a normal <code>SELECT</code>. SQL Server historically used locking; later versions added row-versioning isolation. Do not say “Postgres has no locks” — it has plenty (<code>pg_locks</code>). It just does not lock readers the SQL Server default way.</p>
+      <div class="callout pg18">
+        <strong>PostgreSQL 18 note.</strong> <code>io_method</code> selects how <em>asynchronous-eligible reads</em> run: <code>worker</code> (default, I/O worker processes), <code>io_uring</code> (Linux, needs a build with liburing), or <code>sync</code> (do those I/Os synchronously). It is set at server start only. WAL and commit durability are still synchronous write-ahead logging. AIO does not mean “commits skip fsync.”
+      </div>
+
+      <h2>4. PostgreSQL 18 example</h2>
+      <p>Run these <em>after</em> Chapter 3. Learn the names now.</p>
+<pre><code>ps -u postgres -o pid,cmd
+# or: sudo pstree -p $(pgrep -o postgres)
+</code></pre>
+      <div class="cmd-note"><code>ps</code> lists processes owned by the OS user <code>postgres</code>. You should see one supervisor and several helpers. Each <code>psql</code> session adds a backend line.</div>
+<pre><code>psql -d postgres -c "SHOW shared_buffers;"
+psql -d postgres -c "SHOW wal_level;"
+psql -d postgres -c "SHOW io_method;"
+psql -d postgres -c "SHOW io_workers;"
+</code></pre>
+      <div class="cmd-note"><code>SHOW</code> reads the live setting. On PostgreSQL 18, <code>wal_level</code> defaults to <code>replica</code>. <code>io_method</code> defaults to <code>worker</code>. Changing <code>io_method</code> requires a restart.</div>
+<pre><code>psql -d postgres -c "SELECT pid, backend_type, wait_event_type, wait_event FROM pg_stat_activity ORDER BY backend_type;"
+</code></pre>
+      <div class="cmd-note"><code>pg_stat_activity</code> is the process table for the cluster. <code>backend_type</code> distinguishes client backends from checkpointer, walwriter, and I/O workers.</div>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> <code>shared_buffers</code> is not “set to 80% of RAM.” Typical starting range is a fraction of RAM (often ~25% as a conversation starter, then measure). Connections each cost a backend process. WAL disk is a first-class volume: if WAL cannot flush, commits stall.
+      </div>
+      <ul>
+        <li><strong>Performance:</strong> cache hits live in shared buffers + OS page cache. Sequential read-heavy work is where PG 18 AIO is aimed (scans, vacuum), not “make COMMIT skip WAL.”</li>
+        <li><strong>Reliability:</strong> disable <code>fsync</code> only in throwaway labs. Never in production.</li>
+        <li><strong>Failure:</strong> filling the WAL volume stops the cluster. Filling the data volume does too.</li>
+      </ul>
+      <h3>PostgreSQL ↔ SQL Server</h3>
+      <table>
+        <thead><tr><th>Idea</th><th>PostgreSQL</th><th>SQL Server</th></tr></thead>
+        <tbody>
+          <tr><td>Redo log</td><td>WAL in <code>pg_wal</code></td><td>Transaction log</td></tr>
+          <tr><td>Buffer cache</td><td><code>shared_buffers</code></td><td>Buffer pool</td></tr>
+          <tr><td>Checkpoint</td><td>checkpointer process</td><td>Checkpoint in recovery interval</td></tr>
+          <tr><td>Row versions</td><td>MVCC heap tuples</td><td>Locking + optional version store</td></tr>
+        </tbody>
+      </table>
+
+      <h2>6. Hands-on lab</h2>
+      <p>On <code>pg-primary</code>, no PostgreSQL required. Draw the diagrams from memory, then confirm you can explain each box out loud.</p>
+<pre><code>cat &gt; /tmp/pg18-arch-quiz.txt &lt;&lt;'EOF'
+Write one line each:
+1. What is flushed at COMMIT?
+2. What is flushed at CHECKPOINT?
+3. What process forks backends?
+4. What does MVCC leave behind for VACUUM?
+EOF
+less /tmp/pg18-arch-quiz.txt
+</code></pre>
+      <div class="cmd-note">This is a paper lab. The live process lab is the “look back” at the end of Chapter 3.</div>
+
+      <h2>7. Lab verification</h2>
+      <p>Your answers should match:</p>
+      <ol>
+        <li>WAL (the log records for that commit), when <code>synchronous_commit</code> is on.</li>
+        <li>Dirty pages in shared buffers (plus control/checkpoint bookkeeping).</li>
+        <li>The supervisor <code>postgres</code> process.</li>
+        <li>Dead row versions (and leftover index entries) that no snapshot needs.</li>
+      </ol>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p>After Chapter 3, commits are slow and <code>pg_stat_activity</code> shows <code>WALWrite</code> / IO waits.</p>
+      <h3>Possible causes</h3>
+      <ul>
+        <li>WAL on a slow or full disk.</li>
+        <li><code>synchronous_commit=on</code> (default) on terrible storage — expected durability cost.</li>
+        <li>Another process saturating the disk.</li>
+      </ul>
+      <h3>Investigation</h3>
+<pre><code>df -h /var/lib/postgresql
+psql -d postgres -c "SHOW data_directory;"
+psql -d postgres -c "SELECT wait_event_type, wait_event, count(*) FROM pg_stat_activity GROUP BY 1,2 ORDER BY 3 DESC;"
+</code></pre>
+      <h3>Fix</h3>
+      <p>Free WAL disk. Do not turn off <code>fsync</code> to “fix” production. Move WAL only with a planned layout (later chapters).</p>
+      <h3>Verification</h3>
+      <p>Commits return quickly and <code>df</code> shows free space on the WAL filesystem.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> Commit durability = WAL flush. Crash recovery = replay WAL from last checkpoint. MVCC = extra versions, not in-place overwrite. <code>wal_level</code> default in modern PostgreSQL is <code>replica</code> (enough for replication and hot standby). Old names <code>archive</code> / <code>hot_standby</code> map to <code>replica</code>.
+      </div>
+      <div class="callout remember">
+        <strong>Remember.</strong> WAL = diary. Checkpoint = photo. VACUUM = janitor for dead versions. AIO (PG 18) = faster reads, not optional durability.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li>Supervisor forks backends; helpers write WAL, dirty pages, checkpoints.</li>
+        <li>Pages live in <code>shared_buffers</code> first.</li>
+        <li>COMMIT flushes WAL. Checkpoint flushes data pages.</li>
+        <li>MVCC keeps old row versions until VACUUM.</li>
+        <li>PG 18: <code>io_method</code> is <code>worker</code> by default; restart to change.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td>WAL</td><td>The heap data files</td></tr>
+          <tr><td>Checkpoint</td><td>A commit</td></tr>
+          <tr><td>bgwriter</td><td>checkpointer</td></tr>
+          <tr><td>MVCC snapshot</td><td>“No locks exist”</td></tr>
+          <tr><td><code>io_method</code></td><td>Turning off WAL</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1.</strong> A backend commits. Which must be on disk before PostgreSQL reports success (default <code>synchronous_commit</code>)?</p>
+        <ol type="A">
+          <li>Every dirty heap page for that table</li>
+          <li>The WAL records for the commit</li>
+          <li>A completed checkpoint</li>
+          <li>An autovacuum run</li>
+        </ol>
+        <p><strong>Answer: B.</strong> Heap pages may still be dirty in shared buffers. Checkpoint is periodic. Autovacuum is unrelated to commit acknowledgement.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q2. True / False.</strong> PostgreSQL 18 asynchronous I/O means COMMIT no longer writes WAL.</p>
+        <p><strong>False.</strong> AIO is for eligible reads. WAL remains the write-ahead path for durability.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q3. What happens if</strong> the server crashes after COMMIT returned but before the next checkpoint?</p>
+        <p>On restart, PostgreSQL recovers from the last checkpoint and <strong>replays WAL</strong>, including that commit. The transaction stays committed.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Sketch client → supervisor → backend + helpers → shared buffers → WAL → data files</li>
+        <li>Explain WAL vs checkpoint</li>
+        <li>Explain why UPDATE creates another row version</li>
+        <li>Name <code>io_method</code> values in PostgreSQL 18</li>
+        <li>Contrast WAL with SQL Server’s transaction log at a high level</li>
+      </ul>
+
+      <div class="pager">
+        <a href="01-architectural-overview.html">← Chapter 1</a>
+        <a href="03-installation.html">Chapter 3 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

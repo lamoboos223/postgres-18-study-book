@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>05 Database clusters — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 5 · EDB: Database Clusters</p>
+      <h1>What lives inside PGDATA</h1>
+      <p class="lede">A cluster is one data directory and one running server. This chapter walks the Debian <code>18/main</code> tree so “base backup” and “tablespace” are not abstract later.</p>
+
+      <h2>1. What you need to know</h2>
+      <p>Official definition (again): a cluster is all databases managed by one instance, stored in one data directory. Debian: <code>/var/lib/postgresql/18/main</code>. Important children: <code>base/</code> (per-database files), <code>global/</code> (cluster catalogs, including roles), <code>pg_wal/</code>, <code>pg_tblspc/</code>, <code>pg_stat/</code>, control file.</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row"><div class="box blue wide">PGDATA = cluster</div></div>
+        <div class="row">
+          <div class="box green">base/<small>one folder per database OID</small></div>
+          <div class="box amber">global/<small>roles, pg_database, pg_control</small></div>
+          <div class="box red">pg_wal/<small>WAL segments</small></div>
+        </div>
+        <div class="row">
+          <div class="box purple">pg_tblspc/<small>links to tablespaces</small></div>
+          <div class="box teal">config on Debian<small>/etc/postgresql/18/main</small></div>
+        </div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <p>Each database has an OID. Files in <code>base/&lt;oid&gt;</code> are relations (tables, indexes) named by filenode, not by SQL name. That is why you do not back up a table by copying <code>users</code> from the filesystem.</p>
+      <p><code>pg_default</code> is the default tablespace (<code>base/</code>). <code>pg_global</code> is cluster-wide catalogs. User tablespaces are directories elsewhere with a symlink in <code>pg_tblspc</code>.</p>
+      <p>A second cluster on the same VM = second <code>initdb</code>, second port, second memory budget. Debian: <code>pg_createcluster 18 lab2 --port 5433</code>.</p>
+      <div class="callout warn">
+        <strong>⚠️ Destructive.</strong> <code>pg_dropcluster 18 lab2 --stop</code> deletes that cluster’s data. Never point it at <code>main</code> unless you mean to destroy the book lab.
+      </div>
+
+      <h2>4. PostgreSQL 18 example</h2>
+<pre><code>sudo -u postgres psql -d postgres -c "SHOW data_directory;"
+sudo -u postgres psql -d postgres -c "SHOW config_file;"
+sudo ls /var/lib/postgresql/18/main
+sudo ls /var/lib/postgresql/18/main/base
+</code></pre>
+      <div class="cmd-note"><code>SHOW data_directory</code> is the live PGDATA. <code>ls base</code> shows numeric database directories. <code>postgres</code> OS user owns these files (mode 700).</div>
+<pre><code>sudo -u postgres psql -d postgres -c "SELECT oid, datname FROM pg_database ORDER BY 1;"
+</code></pre>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> Put PGDATA on its own volume. Do not use the mount-point directory itself as PGDATA (official <code>initdb</code> advice: create a subdirectory). Tablespaces are not a substitute for a real storage plan; they complicate backup.
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+<pre><code>sudo -u postgres psql -d postgres -c "SHOW data_directory; SHOW config_file; SHOW hba_file;"
+sudo ls -l /var/lib/postgresql/18/main
+sudo ls /var/lib/postgresql/18/main/pg_wal | head
+sudo du -sh /var/lib/postgresql/18/main
+pg_lsclusters
+</code></pre>
+      <p>Optional second cluster (keep it or drop it — do not use it for <code>study_lab</code>):</p>
+<pre><code># optional
+sudo pg_createcluster 18 lab2 --port 5433
+sudo pg_ctlcluster 18 lab2 stop
+sudo pg_dropcluster 18 lab2
+</code></pre>
+
+      <h2>7. Lab verification</h2>
+<pre><code>sudo -u postgres psql -d postgres -c "SELECT current_setting('data_directory');"
+test -d /var/lib/postgresql/18/main/pg_wal && echo "WAL dir present"
+</code></pre>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p><code>Permission denied</code> listing PGDATA.</p>
+      <h3>Fix</h3>
+      <p>Use <code>sudo ls</code> or <code>sudo -u postgres ls</code>. Do not <code>chmod 777</code> PGDATA.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> Cluster = PGDATA. <code>initdb</code> initializes it. Multiple clusters = multiple instances. Tablespace ≠ database. File names in <code>base/</code> are OIDs/filenodes.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li><code>base/</code> databases, <code>global/</code> cluster catalogs, <code>pg_wal/</code> WAL.</li>
+        <li>Debian splits config to <code>/etc/postgresql/18/main</code>.</li>
+        <li>Second cluster = second port + second directory.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td>Cluster</td><td>HA pair of servers</td></tr>
+          <tr><td>Tablespace</td><td>A schema</td></tr>
+          <tr><td><code>pg_wal</code></td><td>Old name <code>pg_xlog</code> (pre-v10)</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1.</strong> Where are role definitions stored on disk?</p>
+        <p>Cluster catalogs under <code>global/</code>, not inside one database’s <code>base/&lt;oid&gt;</code> folder. That is why roles are cluster-wide.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q2. What happens if</strong> you copy only <code>base/</code> and skip <code>pg_wal</code> / <code>global</code>?</p>
+        <p>You do not have a consistent cluster. Use <code>pg_basebackup</code> or a documented filesystem backup with WAL, not ad-hoc copies.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Print <code>data_directory</code> and <code>config_file</code></li>
+        <li>List <code>base</code>, <code>global</code>, <code>pg_wal</code></li>
+        <li>Match <code>pg_database.oid</code> to a <code>base/</code> folder</li>
+        <li>Explain why you must not chmod PGDATA world-readable</li>
+      </ul>
+
+      <div class="pager">
+        <a href="04-user-tools.html">← Chapter 4</a>
+        <a href="06-configuration.html">Chapter 6 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

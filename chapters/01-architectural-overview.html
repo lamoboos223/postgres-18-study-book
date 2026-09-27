@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>01 Architectural overview — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 1 · EDB: Introduction and Architectural Overview</p>
+      <h1>What PostgreSQL actually is</h1>
+      <p class="lede">If you treat PostgreSQL like “SQL Server, but Linux,” you will fail both the exam and production. This chapter locks the vocabulary: server, cluster, database, schema, role, and the process-per-connection model.</p>
+
+      <h2>1. What you need to know</h2>
+      <p>PostgreSQL is a client/server, object-relational database. The server program is named <code>postgres</code>. Clients (<code>psql</code>, JDBC, your API) speak the PostgreSQL protocol. One running server manages <strong>one database cluster</strong>: a single data directory containing every database, plus cluster-wide objects such as roles and WAL.</p>
+      <p>Official PostgreSQL 18 wording (Architectural Fundamentals): a session is a client plus a server process. The supervisor <code>postgres</code> process accepts connections and <strong>forks a new process per connection</strong>. After that, the client talks only to its backend. The supervisor stays up, waiting for the next connection.</p>
+      <div class="callout pg18">
+        <strong>PostgreSQL 18 note.</strong> The process-per-connection model is still the default architecture in 18. Do not study older “Postgres is getting a thread-per-connection rewrite” rumors as exam facts. Internals such as asynchronous I/O appear in Chapter 2; they do not replace this connection model.
+      </div>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row">
+          <div class="box blue wide">ONE postgres server / ONE cluster (PGDATA)</div>
+        </div>
+        <div class="arrow">▼</div>
+        <div class="row">
+          <div class="box green">postgres<small>utility database</small></div>
+          <div class="box amber">template0 / template1<small>not for app tables</small></div>
+          <div class="box pink">study_lab<small>our app database</small></div>
+        </div>
+        <div class="note">Several databases. Not several unrelated data directories unless you create another cluster.</div>
+      </div>
+      <div class="stack">
+        <div>Client — psql, app, driver</div>
+        <div>postgres supervisor — listens, forks</div>
+        <div>Backend process — one per connection, talks SQL</div>
+        <div>Shared memory + WAL + data files — the cluster on disk</div>
+        <div>Database → schema → table → index → rows in pages</div>
+      </div>
+      <figure class="figure">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 620" role="img" aria-label="Hierarchy from server down to pages">
+          <rect width="880" height="620" fill="#fffdf7"/>
+          <g font-family="Sora, Segoe UI, sans-serif">
+            <rect x="40" y="28" width="800" height="70" rx="14" fill="#1d3f5c"/>
+            <text x="440" y="58" text-anchor="middle" fill="#fff" font-size="22" font-weight="700">PostgreSQL server process (postgres)</text>
+            <text x="440" y="82" text-anchor="middle" fill="#c5d8e7" font-size="14">one running instance · one postmaster/supervisor</text>
+            <rect x="70" y="122" width="740" height="70" rx="14" fill="#2f6288"/>
+            <text x="440" y="152" text-anchor="middle" fill="#fff" font-size="20" font-weight="700">Database cluster = one data directory (PGDATA)</text>
+            <text x="440" y="176" text-anchor="middle" fill="#d5e6f3" font-size="14">roles, WAL, postgresql.conf, all databases together</text>
+            <rect x="100" y="216" width="220" height="86" rx="12" fill="#e4eef5" stroke="#2f6288"/>
+            <text x="210" y="252" text-anchor="middle" fill="#1d3f5c" font-size="16" font-weight="700">postgres</text>
+            <text x="210" y="276" text-anchor="middle" fill="#5b6675" font-size="13">default utility DB</text>
+            <rect x="330" y="216" width="220" height="86" rx="12" fill="#e4eef5" stroke="#2f6288"/>
+            <text x="440" y="252" text-anchor="middle" fill="#1d3f5c" font-size="16" font-weight="700">template0 / template1</text>
+            <text x="440" y="276" text-anchor="middle" fill="#5b6675" font-size="13">not for application work</text>
+            <rect x="560" y="216" width="220" height="86" rx="12" fill="#fff4dd" stroke="#9a5b00"/>
+            <text x="670" y="252" text-anchor="middle" fill="#9a5b00" font-size="16" font-weight="700">study_lab</text>
+            <text x="670" y="276" text-anchor="middle" fill="#5b6675" font-size="13">our application database</text>
+            <rect x="250" y="326" width="380" height="64" rx="12" fill="#e7f7f5" stroke="#0f6e68"/>
+            <text x="440" y="365" text-anchor="middle" fill="#0f6e68" font-size="18" font-weight="700">schema  app   ·   ops   ·   audit</text>
+            <rect x="160" y="414" width="250" height="64" rx="12" fill="#e8eef3" stroke="#3a5368"/>
+            <text x="285" y="453" text-anchor="middle" fill="#1d3f5c" font-size="17" font-weight="700">table  users / orders</text>
+            <rect x="470" y="414" width="250" height="64" rx="12" fill="#e8eef3" stroke="#3a5368"/>
+            <text x="595" y="453" text-anchor="middle" fill="#1d3f5c" font-size="17" font-weight="700">index  on those tables</text>
+            <rect x="250" y="502" width="380" height="64" rx="12" fill="#fdecec" stroke="#9b1c1c"/>
+            <text x="440" y="541" text-anchor="middle" fill="#9b1c1c" font-size="17" font-weight="700">rows stored in 8 kB pages</text>
+          </g>
+        </svg>
+        <figcaption>Exam picture: cluster is the box of all databases. Schema is a namespace <em>inside</em> one database.</figcaption>
+      </figure>
+
+      <h2>3. Deep explanation</h2>
+      <h3>What is a cluster?</h3>
+      <p>Official docs: a <strong>database cluster</strong> is a collection of databases managed by a single running server instance. The SQL standard calls this a catalog cluster. On disk it is one data directory (<code>PGDATA</code>). <code>initdb</code> creates it. After <code>initdb</code>, the cluster contains:</p>
+      <ul>
+        <li><code>postgres</code> — default database for tools and humans. The server does not require it, but many utilities assume it exists.</li>
+        <li><code>template1</code> — default source for <code>CREATE DATABASE</code>.</li>
+        <li><code>template0</code> — pristine template. Use it when <code>template1</code> is dirty or you need a clean encoding/locale copy.</li>
+      </ul>
+      <p>Do not put application tables in <code>template0</code> or <code>template1</code>.</p>
+
+      <h3>Why PostgreSQL isolates databases so hard</h3>
+      <p>A client connection is always to <strong>exactly one database</strong>. There is no <code>USE otherdb</code> that switches catalogs the way SQL Server does. Cross-database queries are not normal SQL; you need <code>dblink</code>, a foreign data wrapper, or a second connection. That is a feature: catalogs, search_path, and permissions stay scoped.</p>
+      <p>Roles (users) are <strong>cluster-wide</strong>. Creating <code>app_user</code> once makes that role visible to every database. Privileges on tables are per-database objects. This split is the #1 SQL Server confusion.</p>
+
+      <h3>Why a process per connection?</h3>
+      <p>PostgreSQL chose OS processes, not a giant threaded server, for crash isolation and a simpler memory model. The cost is RAM per connection and the need for a pooler (<code>PgBouncer</code>, etc.) when an app opens hundreds of connections. Essentials exam: you must be able to say “one backend process per connection” and know that idle connections still occupy a process.</p>
+
+      <h3>Where Chapter 2 will go next</h3>
+      <p>Shared buffers, WAL, checkpoints, background workers, MVCC — those are <em>inside</em> this cluster. This chapter only places the boxes. If you cannot draw cluster → database → schema, stop and redraw it.</p>
+
+      <h2>4. PostgreSQL 18 example</h2>
+      <p>You should not have <code>psql</code> yet. These are the commands you will run <em>after</em> Chapter 3. Read them now so the vocabulary is not new later.</p>
+<pre><code>psql -d postgres -c '\conninfo'
+psql -d postgres -c '\l'
+</code></pre>
+      <div class="cmd-note">
+        <code>psql</code> is the official client. <code>-d postgres</code> selects the database (not the cluster). <code>\conninfo</code> shows host, port, user, database for this session. <code>\l</code> lists databases in the cluster.
+      </div>
+<pre><code>psql -d postgres -c "SELECT datname FROM pg_database ORDER BY 1;"
+psql -d postgres -c "SELECT current_database(), inet_server_addr(), inet_server_port();"
+</code></pre>
+      <div class="cmd-note">
+        <code>pg_database</code> is a cluster catalog: it lists every database. <code>current_database()</code> is this session only. <code>inet_server_addr()</code> / <code>inet_server_port()</code> show where this backend is listening from the server’s point of view — useful later when you debug “which host did I actually hit?”
+      </div>
+      <p>If someone already installed PostgreSQL on your VM, you may peek. Do not create <code>study_lab</code> yet — that is Chapter 4.</p>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> One cluster per host is the usual story. A second cluster on the same VM means a second port, a second data directory, a second memory budget, and twice the backup surface. Apps should not open a raw connection per HTTP request; that pattern exhausts <code>max_connections</code> and RAM.
+      </div>
+      <ul>
+        <li><strong>Scalability:</strong> add connections only through a pool. Scale read traffic with replicas (Chapter 15), not with “one database per microservice on the same cluster” unless you meant to share roles and WAL.</li>
+        <li><strong>Reliability:</strong> a crash of one backend should not take down the supervisor. A crash of the machine takes down every database in that cluster together.</li>
+        <li><strong>Security:</strong> cluster-wide roles mean a compromised superuser is a cluster event, not a single-database event.</li>
+        <li><strong>Failure mode:</strong> filling the data-directory disk freezes the whole cluster — all databases, not just <code>study_lab</code>.</li>
+      </ul>
+
+      <h3>PostgreSQL ↔ SQL Server</h3>
+      <table>
+        <thead><tr><th>Idea</th><th>PostgreSQL</th><th>SQL Server</th></tr></thead>
+        <tbody>
+          <tr><td>Running engine</td><td>One <code>postgres</code> instance / cluster</td><td>One instance</td></tr>
+          <tr><td>Database</td><td>Hard isolation; connect per DB</td><td><code>USE</code> between DBs in one instance</td></tr>
+          <tr><td>Schema</td><td>Namespace inside one database</td><td>Namespace inside one database</td></tr>
+          <tr><td>Login / user</td><td>Role is cluster-wide; GRANTs are per object</td><td>Login (instance) vs user (database)</td></tr>
+          <tr><td>Concurrency plumbing</td><td>Process per connection</td><td>Threads in one process</td></tr>
+          <tr><td>System DB analogue</td><td><code>postgres</code> + catalogs + templates</td><td><code>master</code> / <code>msdb</code> / <code>model</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2>6. Hands-on lab</h2>
+      <p>This lab does <strong>not</strong> install PostgreSQL. It trains you to see the machine the way a DBA does before packages land.</p>
+      <p>SSH to <code>pg-primary</code>:</p>
+<pre><code>ssh labhost@192.168.56.10
+</code></pre>
+      <div class="cmd-note">
+        You are opening a shell on the future primary. Nothing here starts a database.
+      </div>
+<pre><code>hostname
+uname -a
+cat /etc/os-release
+df -h /
+free -h
+ss -lnt | head
+</code></pre>
+      <div class="cmd-note">
+        <code>df -h /</code> is disk — the cluster will live here later (or on a mounted volume). <code>free -h</code> is RAM — shared_buffers will come out of this. <code>ss -lnt</code> lists listening TCP ports. Port <code>5432</code> should be <em>absent</em> until Chapter 3.
+      </div>
+<pre><code>getent passwd postgres || echo "no postgres OS user yet — expected"
+ls /var/lib/postgresql 2>/dev/null || echo "no PostgreSQL data parent yet — expected"
+</code></pre>
+
+      <h2>7. Lab verification</h2>
+<pre><code>hostname
+# pg-primary
+
+ss -lnt | grep 5432 && echo "UNEXPECTED: something already listens on 5432" || echo "5432 free — good"
+
+cat /etc/os-release | grep -E '^(NAME|VERSION)='
+# Debian GNU/Linux, version 12 or 13 is fine
+</code></pre>
+      <p>Write down RAM and disk. Chapter 3 will not invent hardware for you.</p>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p>You expected a clean lab, but <code>ss -lnt</code> shows <code>5432</code> already open.</p>
+      <h3>Possible causes</h3>
+      <ul>
+        <li>A previous PostgreSQL install on this VM.</li>
+        <li>Another product bound to 5432.</li>
+        <li>You are on the wrong VM.</li>
+      </ul>
+      <h3>Investigation</h3>
+<pre><code>hostname
+sudo ss -lntp | grep 5432
+ps aux | grep -E '[p]ostgres|[p]ostmaster'
+dpkg -l 'postgresql*' 2>/dev/null | grep ^ii
+</code></pre>
+      <h3>Diagnosis</h3>
+      <p>If <code>dpkg</code> shows <code>postgresql-18</code>, this VM is ahead of the book. That is not fatal — skip the install bits of Chapter 3 and use the inspection labs. If the version is 15/16/17, do not pretend it is 18.</p>
+      <h3>Fix</h3>
+      <p>Prefer a clean VM for the install chapter. If you keep the existing 18 cluster, treat it as <code>18/main</code> and stay honest about what you did not install yourself.</p>
+      <h3>Verification</h3>
+<pre><code>psql --version
+# must say 18.x if you are going to follow PostgreSQL 18 notes
+</code></pre>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> Memorize the official definition: a cluster is all databases managed by one server instance, stored in one data directory. Know that <code>template0</code>/<code>template1</code>/<code>postgres</code> appear after <code>initdb</code>. Know process-per-connection.
+      </div>
+      <ul>
+        <li>The server executable is <code>postgres</code>. People still say “postmaster” for the supervisor — Chapter 2 will use both.</li>
+        <li>Connecting to <code>postgres</code> the database is not the same as becoming the <code>postgres</code> role, and neither is the OS user — three different things can share the name.</li>
+        <li>Trap: “cluster” in Kubernetes/Patroni marketing vs PostgreSQL’s data-directory cluster. On this exam, cluster means PGDATA unless the question is clearly about HA.</li>
+      </ul>
+      <div class="callout remember">
+        <strong>Remember.</strong> Cluster = one data directory + one running server. Database = a named catalog inside that cluster. Schema = a namespace inside one database.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li>Client/server. Server program: <code>postgres</code>.</li>
+        <li>Supervisor forks one backend per connection.</li>
+        <li>Cluster = PGDATA = all databases + roles + WAL.</li>
+        <li><code>initdb</code> creates <code>postgres</code>, <code>template1</code>, <code>template0</code>.</li>
+        <li>One connection → one database. Roles are cluster-wide.</li>
+        <li>SQL Server <code>USE</code> does not exist here.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>Term</th><th>Means</th><th>Does not mean</th></tr></thead>
+        <tbody>
+          <tr><td>Cluster</td><td>One PGDATA / one instance</td><td>Automatically multi-node HA</td></tr>
+          <tr><td>Database</td><td>Catalog you connect to</td><td>A schema</td></tr>
+          <tr><td>Schema</td><td>Namespace in one database</td><td>A whole database</td></tr>
+          <tr><td><code>postgres</code> (process)</td><td>The server program</td><td>Always the database named postgres</td></tr>
+          <tr><td><code>postgres</code> (role)</td><td>Default superuser</td><td>The OS must be used for every query</td></tr>
+          <tr><td>Template DBs</td><td>Sources for CREATE DATABASE</td><td>Places to store app tables</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1. Multiple choice.</strong> A PostgreSQL database cluster is:</p>
+        <ol type="A">
+          <li>Two or more servers doing automatic failover</li>
+          <li>A collection of databases managed by one server instance, in one data directory</li>
+          <li>A single schema that contains all tables</li>
+          <li>The <code>postgres</code> database only</li>
+        </ol>
+        <p><strong>Answer: B.</strong> That is the official definition. A is HA marketing. C is a schema. D is one database inside the cluster.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q2. True / False.</strong> After you connect, you can <code>USE study_lab</code> to switch databases the way SQL Server does.</p>
+        <p><strong>False.</strong> You reconnect (or open another session) to the other database. <code>psql</code> has <code>\c study_lab</code>, which is a new connection, not a catalog switch inside one backend.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q3. What happens if…</strong> two applications connect at the same time to the same cluster?</p>
+        <p>The supervisor forks <strong>two backend processes</strong>. They share the cluster’s memory and files; they do not share a single SQL session. Locks and MVCC (Chapter 2 / 11) coordinate their data changes.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q4. Scenario.</strong> A developer says “we created a new cluster” and they mean they ran <code>CREATE DATABASE billing</code>. What do you tell them?</p>
+        <p>They created a <strong>database</strong>, not a cluster. A new cluster would be a new <code>initdb</code> / new data directory / new server instance (and usually a new port).</p>
+      </div>
+      <div class="q">
+        <p><strong>Q5. Multiple choice.</strong> Which objects are created by <code>initdb</code> and should not hold application tables?</p>
+        <ol type="A">
+          <li><code>study_lab</code> only</li>
+          <li><code>template0</code> and <code>template1</code></li>
+          <li><code>pg_wal</code> and <code>pg_xlog</code></li>
+          <li>Every schema named <code>public</code></li>
+        </ol>
+        <p><strong>Answer: B.</strong> Official guidance: templates are not for actual work. <code>pg_xlog</code> is the pre-v10 WAL directory name — not an <code>initdb</code> database. <code>public</code> is a schema, not a template database.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Define cluster, database, and schema without mixing them</li>
+        <li>Explain process-per-connection in one sentence</li>
+        <li>Name the three databases <code>initdb</code> creates</li>
+        <li>Contrast connecting to a database vs SQL Server <code>USE</code></li>
+        <li>Explain why roles are cluster-wide</li>
+        <li>Confirm 5432 is free on <code>pg-primary</code> (or know why it is not)</li>
+      </ul>
+
+      <div class="diag">
+        <div class="row">
+          <div class="box teal">Client<small>psql / app / driver</small></div>
+        </div>
+        <div class="arrow">▼ TCP / Unix socket</div>
+        <div class="row">
+          <div class="box purple">postgres supervisor<small>listens and forks</small></div>
+        </div>
+        <div class="arrow">▼ one process per connection</div>
+        <div class="row">
+          <div class="box amber">Backend A</div>
+          <div class="box amber">Backend B</div>
+          <div class="box amber">Backend C</div>
+        </div>
+        <div class="note">Chapter 2 fills in shared buffers, WAL, and background workers around these backends.</div>
+      </div>
+
+      <div class="pager">
+        <a href="00-front-matter.html">← Front matter</a>
+        <a href="02-system-architecture.html">Chapter 2 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

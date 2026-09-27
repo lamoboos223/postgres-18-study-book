@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>12 Backup and PITR — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 12 · EDB: Backup, Recovery and Point-in-Time Recovery</p>
+      <h1>pg_dump is not a replica, and WAL is not optional for PITR</h1>
+      <p class="lede">Logical backup copies SQL-restoreable objects. Physical backup copies the cluster files. PITR needs a base backup plus archived WAL.</p>
+
+      <h2>1. What you need to know</h2>
+      <p><code>pg_dump</code> / <code>pg_dumpall</code> = logical. <code>pg_basebackup</code> = physical of a running cluster (replication protocol; needs <code>REPLICATION</code> privilege or superuser, and a free WAL sender). Restore of a dump is <code>pg_restore</code> or <code>psql</code> depending on format.</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row"><div class="box blue wide">Primary cluster</div></div>
+        <div class="arrow">▼ choose one job</div>
+        <div class="row">
+          <div class="box green">pg_dump<small>one DB, logical</small></div>
+          <div class="box amber">pg_dumpall<small>roles + all DBs</small></div>
+          <div class="box red">pg_basebackup<small>whole cluster, physical</small></div>
+        </div>
+        <div class="arrow">▼ PITR needs</div>
+        <div class="row">
+          <div class="box purple">base backup</div>
+          <div class="box pink">WAL archive</div>
+          <div class="box teal">recovery target time</div>
+        </div>
+      </div>
+      <div class="diag">
+        <div class="row">
+          <div class="box slate">Backup</div>
+          <div class="box red">≠</div>
+          <div class="box slate">Replication</div>
+        </div>
+        <div class="note">A backup is a point-in-time copy. A replica is a running second server replaying WAL.</div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <p>A dump does not include uncommitted work and is not crash-consistent the way a base backup + WAL is. It is excellent for logical copies and migrations. Physical backup is what you need for PITR and for building standbys (Chapter 15).</p>
+      <p>PITR: enable <code>archive_mode</code>, set <code>archive_command</code> (or <code>archive_library</code>), take <code>pg_basebackup</code>, keep WAL segments. Restore files, configure recovery to a timestamp, start. <code>wal_level</code> must be <code>replica</code> or higher (default). Official docs: <code>minimal</code> is not enough for PITR / streaming.</p>
+      <p>Formats: <code>pg_dump -Fc</code> custom (pg_restore, parallel). <code>-f file.sql</code> plain (psql).</p>
+
+      <h2>4. PostgreSQL 18 example</h2>
+<pre><code>sudo -u postgres pg_dump -d study_lab -Fc -f /tmp/study_lab.dump
+sudo -u postgres pg_dump -d study_lab -f /tmp/study_lab.sql
+sudo -u postgres pg_basebackup -D /tmp/basebak -Fp -Xs -P
+</code></pre>
+      <div class="cmd-note">
+        <code>-Fc</code> custom format. <code>-D</code> destination directory for a physical copy. <code>-Fp</code> plain files. <code>-Xs</code> stream WAL with the backup so the copy is consistent. <code>-P</code> progress.
+      </div>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> Test restore on another machine. A backup you have never restored is a rumor. Retention must cover your RPO. Encryption and off-site copies are operations, not optional extras.
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+<pre><code>sudo -u postgres mkdir -p /var/lib/postgresql/backups /var/lib/postgresql/wal_archive
+sudo -u postgres pg_dump -d study_lab -Fc -f /var/lib/postgresql/backups/study_lab.dump
+</code></pre>
+      <p>Logical restore into a throwaway database:</p>
+<pre><code>sudo -u postgres psql -d postgres -c "CREATE DATABASE study_lab_restore OWNER lab_admin;"
+sudo -u postgres pg_restore -d study_lab_restore /var/lib/postgresql/backups/study_lab.dump
+sudo -u postgres psql -d study_lab_restore -c "SELECT count(*) FROM app.users;"
+</code></pre>
+      <div class="callout warn">
+        <strong>⚠️ Destructive if you restore over study_lab.</strong> We restore into <code>study_lab_restore</code> only.
+      </div>
+      <p>Physical backup (lab copy, not a standby yet):</p>
+<pre><code>sudo -u postgres pg_basebackup -h 127.0.0.1 -U postgres -D /var/lib/postgresql/backups/base_main -Fp -Xs -P
+</code></pre>
+      <p>Optional mini PITR (archive to a folder). In <code>postgresql.conf</code>:</p>
+<pre><code>archive_mode = on
+archive_command = 'test ! -f /var/lib/postgresql/wal_archive/%f &amp;&amp; cp %p /var/lib/postgresql/wal_archive/%f'
+</code></pre>
+      <p>Restart after <code>archive_mode</code> (it is a restart parameter), then <code>SELECT pg_switch_wal();</code> and confirm a file landed in the archive directory.</p>
+
+      <h2>7. Lab verification</h2>
+<pre><code>sudo -u postgres psql -d study_lab_restore -c "SELECT email FROM app.users;"
+ls /var/lib/postgresql/backups
+ls /var/lib/postgresql/wal_archive | head
+</code></pre>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p><code>pg_basebackup</code> fails with replication / WAL sender errors.</p>
+      <h3>Possible causes</h3>
+      <ul>
+        <li><code>max_wal_senders</code> exhausted (default 10 — lab should be fine).</li>
+        <li><code>pg_hba</code> missing a replication line if you used a non-superuser.</li>
+        <li>Destination directory exists and is not empty.</li>
+      </ul>
+      <h3>Fix</h3>
+      <p>Use an empty <code>-D</code>. Superuser local backup should work. For a dedicated user, <code>CREATE ROLE ... REPLICATION LOGIN</code> and a <code>host replication</code> <code>pg_hba</code> line.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> Logical vs physical. Dump is not PITR. <code>pg_dumpall</code> for roles. Base backup + WAL archive = PITR. Backup ≠ streaming replica.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li><code>pg_dump -Fc</code> + <code>pg_restore</code> into <code>study_lab_restore</code>.</li>
+        <li><code>pg_basebackup -Xs</code> for a consistent physical copy.</li>
+        <li>Archive WAL if you want PITR.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td><code>pg_dump</code></td><td><code>pg_basebackup</code></td></tr>
+          <tr><td>Backup</td><td>Replication</td></tr>
+          <tr><td>PITR</td><td>A single dump file</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1.</strong> You have only last night’s <code>pg_dump</code>. Can you restore to 10:17 this morning?</p>
+        <p>No. That is a logical snapshot of dump time. PITR needs physical backup + WAL after that backup.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Dump and restore <code>study_lab</code> logically</li>
+        <li>Take <code>pg_basebackup</code></li>
+        <li>Explain archive_command placeholders <code>%p</code> and <code>%f</code></li>
+        <li>Say why backup ≠ replica</li>
+      </ul>
+
+      <div class="pager">
+        <a href="11-sql-primer.html">← Chapter 11</a>
+        <a href="13-maintenance.html">Chapter 13 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

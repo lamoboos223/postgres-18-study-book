@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>07 Data dictionary — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 7 · EDB: Data Dictionary</p>
+      <h1>Catalogs, information_schema, and stats views</h1>
+      <p class="lede">The dictionary is how a DBA answers “what exists?” without guessing. Three layers: <code>pg_catalog</code> (truth), <code>information_schema</code> (SQL-standard, narrower), <code>pg_stat_*</code> (activity, not structure).</p>
+
+      <h2>1. What you need to know</h2>
+      <p>Every database has <code>pg_catalog</code>. Cluster-wide facts (roles, databases, tablespaces) are visible from any connection via catalogs like <code>pg_roles</code> and <code>pg_database</code>. Per-database objects (tables in <code>study_lab</code>) appear when you are connected to that database.</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row">
+          <div class="box red">pg_catalog<small>PostgreSQL truth</small></div>
+          <div class="box amber">information_schema<small>portable, incomplete</small></div>
+          <div class="box green">pg_stat_*<small>what is happening</small></div>
+        </div>
+        <div class="arrow">▼ you ask</div>
+        <div class="row">
+          <div class="box blue">What tables?</div>
+          <div class="box purple">Who is connected?</div>
+          <div class="box teal">What is the setting?</div>
+        </div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <p><code>information_schema</code> is for portable SQL. It hides a lot of PostgreSQL-only objects. Exam trap: a table exists in <code>pg_class</code> but not where a naive <code>information_schema.tables</code> filter looks.</p>
+      <p>Useful views (you will reuse these forever):</p>
+      <table>
+        <thead><tr><th>View</th><th>Use it for</th></tr></thead>
+        <tbody>
+          <tr><td><code>pg_database</code></td><td>Databases in the cluster</td></tr>
+          <tr><td><code>pg_roles</code> / <code>pg_authid</code></td><td>Roles (passwords only on authid, superuser)</td></tr>
+          <tr><td><code>pg_namespace</code></td><td>Schemas</td></tr>
+          <tr><td><code>pg_class</code></td><td>Tables, indexes, sequences</td></tr>
+          <tr><td><code>pg_index</code></td><td>Index definitions</td></tr>
+          <tr><td><code>pg_settings</code></td><td>GUCs</td></tr>
+          <tr><td><code>pg_stat_activity</code></td><td>Sessions</td></tr>
+          <tr><td><code>pg_stat_database</code></td><td>Per-database counters</td></tr>
+          <tr><td><code>pg_locks</code></td><td>Lock waits</td></tr>
+        </tbody>
+      </table>
+
+      <h2>4. PostgreSQL 18 example</h2>
+<pre><code>sudo -u postgres psql -d study_lab
+</code></pre>
+<pre><code>SELECT datname FROM pg_database ORDER BY 1;
+SELECT nspname FROM pg_namespace ORDER BY 1;
+SELECT relname, relkind FROM pg_class
+WHERE relnamespace = 'public'::regnamespace
+ORDER BY 1;
+SELECT * FROM information_schema.tables WHERE table_schema = 'public';
+SHOW search_path;
+</code></pre>
+      <div class="cmd-note"><code>regnamespace</code> casts a schema name to its OID for catalog joins. <code>relkind</code> <code>r</code> = ordinary table, <code>i</code> = index, <code>S</code> = sequence, <code>v</code> = view.</div>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> Monitoring products query <code>pg_stat_*</code>. Resetting stats (<code>pg_stat_reset()</code>) wipes counters — do not do that casually on prod. Catalog bloat is rare; <em>user table</em> bloat is common (Chapter 13).
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+<pre><code>sudo -u postgres psql -d study_lab -c "\dS"
+sudo -u postgres psql -d study_lab -c "SELECT name, setting FROM pg_settings WHERE name LIKE 'wal%';"
+sudo -u postgres psql -d postgres -c "SELECT pid, usename, datname, state, query FROM pg_stat_activity;"
+</code></pre>
+
+      <h2>7. Lab verification</h2>
+<pre><code>sudo -u postgres psql -d study_lab -c "SELECT count(*) FROM pg_database WHERE datname = 'study_lab';"
+# 1
+</code></pre>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p><code>relation "users" does not exist</code> but you swear you created it.</p>
+      <h3>Investigation</h3>
+<pre><code>SELECT current_database(), current_schemas(true);
+SELECT n.nspname, c.relname
+FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE c.relname = 'users';
+</code></pre>
+      <h3>Diagnosis</h3>
+      <p>Wrong database, wrong <code>search_path</code>, or the table is in <code>app</code> (Chapter 8).</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> <code>pg_catalog</code> vs <code>information_schema</code>. Stats views are not the same as catalogs. <code>\d</code> reads catalogs.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li>Catalogs = structure. Stats = activity. information_schema = portable subset.</li>
+        <li>Connect to the right database before describing its tables.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td><code>pg_class</code></td><td><code>pg_stat_activity</code></td></tr>
+          <tr><td>Schema <code>pg_catalog</code></td><td>Database <code>postgres</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1.</strong> Why can you see <code>pg_roles</code> from <code>study_lab</code> but not a table that lives only in another database?</p>
+        <p>Roles are cluster-wide catalogs. User tables belong to one database’s catalogs.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Query <code>pg_database</code>, <code>pg_namespace</code>, <code>pg_class</code></li>
+        <li>Explain when <code>information_schema</code> is the wrong tool</li>
+        <li>Read <code>pg_stat_activity</code> without panicking</li>
+      </ul>
+
+      <div class="pager">
+        <a href="06-configuration.html">← Chapter 6</a>
+        <a href="08-managing-databases.html">Chapter 8 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

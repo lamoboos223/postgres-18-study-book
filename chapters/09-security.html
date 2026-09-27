@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>09 Security — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 9 · EDB: Database Security</p>
+      <h1>Roles, GRANT, and the failed-then-fixed permission lab</h1>
+      <p class="lede">Authentication is <code>pg_hba</code>. Authorization is <code>GRANT</code>. Superuser bypasses almost everything — do not use it for the app.</p>
+
+      <h2>1. What you need to know</h2>
+      <p>Roles can login or be groups (<code>NOLOGIN</code>). Privileges: <code>CONNECT</code> on database, <code>USAGE</code> on schema, table DML rights, and so on. Default privileges on <code>public</code> have tightened across recent majors — never assume “public can do anything.”</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row"><div class="box teal">TCP / socket</div></div>
+        <div class="arrow">▼</div>
+        <div class="row"><div class="box red">pg_hba.conf</div></div>
+        <div class="arrow">▼</div>
+        <div class="row"><div class="box amber">Role password / peer</div></div>
+        <div class="arrow">▼</div>
+        <div class="row"><div class="box green">GRANT CONNECT / USAGE / SELECT...</div></div>
+        <div class="arrow">▼</div>
+        <div class="row"><div class="box purple">SQL runs or permission denied</div></div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <p>SQL Server: login (instance) + user (database). PostgreSQL: one role cluster-wide; you still must grant database <code>CONNECT</code> and object rights. <code>GRANT role_a TO role_b</code> is group membership.</p>
+      <p>Object owner can do almost anything to that object. Superuser can do almost anything to the cluster.</p>
+
+      <h2>4. PostgreSQL 18 example</h2>
+<pre><code>CREATE ROLE app_user LOGIN PASSWORD 'app_user_lab_only';
+GRANT CONNECT ON DATABASE study_lab TO app_user;
+GRANT USAGE ON SCHEMA app TO app_user;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA app TO app_user;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA app TO app_user;
+</code></pre>
+      <div class="cmd-note"><code>USAGE</code> on a schema is “may look up names.” Without it, even SELECT on a table fails. Sequences need <code>USAGE</code> for <code>IDENTITY</code>/<code>nextval</code>.</div>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> One role per app, not per developer, unless you have a reason. Revoke <code>CREATE</code> on <code>public</code> if it is still granted. Prefer <code>ALTER DEFAULT PRIVILEGES</code> so future tables stay locked down.
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+      <p>Add to <code>pg_hba.conf</code> (then reload):</p>
+<pre><code>host    study_lab    app_user    192.168.56.0/24    scram-sha-256
+host    study_lab    app_user    127.0.0.1/32       scram-sha-256
+</code></pre>
+<pre><code>sudo pg_ctlcluster 18 main reload
+sudo -u postgres psql -d study_lab -f - &lt;&lt;'SQL'
+CREATE ROLE app_user LOGIN PASSWORD 'app_user_lab_only';
+GRANT CONNECT ON DATABASE study_lab TO app_user;
+-- deliberately skip schema USAGE first
+GRANT SELECT ON app.users TO app_user;
+SQL
+</code></pre>
+      <p>Connect and fail:</p>
+<pre><code>psql -h 127.0.0.1 -U app_user -d study_lab -c "SELECT * FROM app.users;"
+# expected: permission denied for schema app
+</code></pre>
+      <p>Fix:</p>
+<pre><code>sudo -u postgres psql -d study_lab -c "GRANT USAGE ON SCHEMA app TO app_user;"
+psql -h 127.0.0.1 -U app_user -d study_lab -c "SELECT email FROM app.users;"
+</code></pre>
+
+      <h2>7. Lab verification</h2>
+<pre><code>psql -h 127.0.0.1 -U app_user -d study_lab -c "SELECT count(*) FROM app.users;"
+psql -h 127.0.0.1 -U app_user -d study_lab -c "SELECT * FROM audit.audit_logs;"
+# second should fail — no grant on audit
+</code></pre>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p><code>password authentication failed</code> vs <code>permission denied for table</code>.</p>
+      <h3>Diagnosis</h3>
+      <p>First is <code>pg_hba</code> / password / role <code>LOGIN</code>. Second is GRANT. Read the error. They are not the same ticket.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> Auth ≠ privileges. Schema <code>USAGE</code>. Owner vs GRANT. Superuser is not an application pattern.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li><code>app_user</code> can read <code>app.users</code> after USAGE + SELECT.</li>
+        <li><code>audit</code> stays locked.</li>
+        <li>Failed-then-fixed lab is the lesson.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td>Role</td><td>OS user</td></tr>
+          <tr><td><code>pg_hba</code></td><td><code>GRANT</code></td></tr>
+          <tr><td><code>LOGIN</code></td><td><code>SUPERUSER</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1.</strong> Why did SELECT fail before schema USAGE even with table GRANT?</p>
+        <p>PostgreSQL checks schema usage before object privileges. No USAGE, no name lookup.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Create <code>app_user</code></li>
+        <li>Reproduce schema permission denied</li>
+        <li>Fix with GRANT USAGE</li>
+        <li>Prove <code>audit</code> is still denied</li>
+      </ul>
+
+      <div class="pager">
+        <a href="08-managing-databases.html">← Chapter 8</a>
+        <a href="10-monitoring.html">Chapter 10 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

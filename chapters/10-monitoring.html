@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>10 Monitoring — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 10 · EDB: Monitoring and Admin Tools</p>
+      <h1>Logging and the views a DBA actually watches</h1>
+      <p class="lede">Monitoring is not a vendor dashboard. It is: who is connected, what they wait on, whether the disk is filling, and whether the logs tell you why.</p>
+
+      <h2>1. What you need to know</h2>
+      <p>Two channels: <strong>logs</strong> (<code>postgresql.conf</code> logging) and <strong>stats views</strong>. Debian often logs via systemd journal <em>and/or</em> files under <code>/var/log/postgresql/</code>.</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row">
+          <div class="box blue">pg_stat_activity<small>sessions right now</small></div>
+          <div class="box green">pg_stat_database<small>counters</small></div>
+          <div class="box amber">pg_stat_bgwriter / io<small>writers &amp; I/O</small></div>
+        </div>
+        <div class="row">
+          <div class="box red">pg_locks<small>who blocks whom</small></div>
+          <div class="box purple">log_min_duration_statement<small>slow SQL</small></div>
+          <div class="box teal">df + pg_wal<small>disk</small></div>
+        </div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <p><code>pg_stat_activity.query</code> is the current (or last) statement. <code>wait_event</code> tells you if the session is idle, on a lock, or on IO. <code>state = 'idle in transaction'</code> is a classic production leak — it holds snapshots and blocks VACUUM.</p>
+      <p>Logging GUCs: <code>logging_collector</code>, <code>log_destination</code>, <code>log_min_duration_statement</code>, <code>log_connections</code>, <code>log_lock_waits</code>. Too much logging can fill disks.</p>
+      <div class="callout pg18">
+        <strong>PostgreSQL 18 note.</strong> <code>pg_stat_io</code> is the detailed I/O stats view (expanded over recent majors). Use it with <code>EXPLAIN (ANALYZE, BUFFERS)</code> — Chapter 11. Do not treat unofficial “2–3× AIO” blog numbers as exam facts.
+      </div>
+
+      <h2>4. PostgreSQL 18 example</h2>
+<pre><code>SELECT pid, usename, datname, state, wait_event_type, wait_event, left(query, 80)
+FROM pg_stat_activity
+WHERE backend_type = 'client backend';
+
+SELECT datname, numbackends, xact_commit, blks_hit, blks_read
+FROM pg_stat_database WHERE datname = 'study_lab';
+</code></pre>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> Alert on: disk, replication lag (Ch 15), oldest <code>xmin</code> / wraparound risk (Ch 13), connection saturation, lock waits. APM is not a substitute for <code>pg_stat_activity</code>.
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+<pre><code>sudo -u postgres psql -d postgres -c "SHOW log_destination;"
+sudo -u postgres psql -d postgres -c "SHOW logging_collector;"
+sudo ls /var/log/postgresql || true
+sudo journalctl -u postgresql@18-main -n 30 --no-pager
+</code></pre>
+      <p>Turn on slow-query logging for the lab (reload):</p>
+<pre><code>sudo -u postgres psql -d postgres -c "ALTER SYSTEM SET log_min_duration_statement = '200ms';"
+sudo pg_ctlcluster 18 main reload
+sudo -u postgres psql -d study_lab -c "SELECT pg_sleep(0.3);"
+</code></pre>
+      <div class="cmd-note"><code>ALTER SYSTEM</code> writes <code>postgresql.auto.conf</code>. <code>pg_sleep(0.3)</code> should exceed 200ms and land in the log.</div>
+
+      <h2>7. Lab verification</h2>
+<pre><code>sudo grep -i sleep /var/log/postgresql/postgresql-18-main.log | tail
+# or journalctl if that file does not exist
+sudo -u postgres psql -d postgres -c "SHOW log_min_duration_statement;"
+</code></pre>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p>High CPU, few queries in the log.</p>
+      <h3>Investigation</h3>
+<pre><code>SELECT pid, state, wait_event, query FROM pg_stat_activity;
+top -u postgres
+</code></pre>
+      <h3>Diagnosis</h3>
+      <p>Busy backends with no wait event are on CPU (bad plans, tight loops). Waiting on <code>Lock</code> / <code>LWLock</code> is contention. Waiting on IO is storage.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> Name <code>pg_stat_activity</code>, <code>pg_stat_database</code>, <code>pg_locks</code>. Know <code>idle in transaction</code> is dangerous. Reload after logging GUC changes when context is sighup.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li>Activity views + logs + disk.</li>
+        <li><code>log_min_duration_statement</code> for slow SQL.</li>
+        <li>Reset <code>log_min_duration_statement</code> to default if the log gets noisy.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td>Current query</td><td>Total historical workload (need <code>pg_stat_statements</code> extension)</td></tr>
+          <tr><td>Journal</td><td>Always the same as <code>/var/log/postgresql</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1.</strong> Why is <code>idle in transaction</code> worse than <code>idle</code>?</p>
+        <p>An open transaction holds a snapshot. VACUUM cannot remove dead rows still visible to that snapshot. <code>idle</code> is just an unused connection (still costs a process).</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Read <code>pg_stat_activity</code></li>
+        <li>Find the log file or journal</li>
+        <li>Log a 300ms statement</li>
+        <li>Explain idle vs idle in transaction</li>
+      </ul>
+
+      <div class="pager">
+        <a href="09-security.html">← Chapter 9</a>
+        <a href="11-sql-primer.html">Chapter 11 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

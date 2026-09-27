@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>03 Installation — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 3 · EDB: PostgreSQL Installation</p>
+      <h1>Install PostgreSQL 18 on pg-primary</h1>
+      <p class="lede">Use the official PGDG Apt repository so you get version 18, not whatever Debian snapshot shipped. Install only on <code>pg-primary</code>. Leave <code>pg-standby</code> alone until Chapter 15.</p>
+
+      <h2>1. What you need to know</h2>
+      <p>Debian’s own <code>apt install postgresql</code> tracks Debian’s chosen major. This book needs <strong>PostgreSQL 18</strong>. Official postgresql.org Debian page: add the PGDG repo, then <code>apt install postgresql-18</code>.</p>
+      <p>The Debian packages run <code>initdb</code> for you and create cluster <code>18/main</code>, managed by systemd and <code>pg_ctlcluster</code>.</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row"><div class="box slate">Debian packages (apt)</div></div>
+        <div class="arrow">▼</div>
+        <div class="row"><div class="box blue">PGDG repo apt.postgresql.org</div></div>
+        <div class="arrow">▼</div>
+        <div class="row"><div class="box green">postgresql-18 package</div></div>
+        <div class="arrow">▼</div>
+        <div class="row">
+          <div class="box amber">systemd postgresql.service</div>
+          <div class="box pink">cluster 18/main</div>
+        </div>
+        <div class="arrow">▼</div>
+        <div class="row">
+          <div class="box purple">/etc/postgresql/18/main<small>config</small></div>
+          <div class="box teal">/var/lib/postgresql/18/main<small>PGDATA</small></div>
+        </div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <p>On vanilla PostgreSQL, you would create an OS user, run <code>initdb -D ...</code>, and start with <code>pg_ctl</code>. Debian wrappers:</p>
+      <ul>
+        <li><code>pg_createcluster</code> / the package post-install script — runs <code>initdb</code> with Debian paths.</li>
+        <li><code>pg_ctlcluster 18 main start|stop|reload|status</code> — version-aware wrapper around <code>pg_ctl</code>.</li>
+        <li><code>pg_lsclusters</code> — lists every cluster on the machine.</li>
+        <li>systemd unit <code>postgresql</code> starts all clusters; <code>postgresql@18-main</code> is the instance.</li>
+      </ul>
+      <p>Config lives under <code>/etc/postgresql/18/main/</code> even though data is under <code>/var/lib/postgresql/18/main/</code>. That split is Debian packaging, not a PostgreSQL-on-Windows law.</p>
+      <div class="callout remember">
+        <strong>Remember.</strong> Pin the major: install <code>postgresql-18</code>, not the floating <code>postgresql</code> metapackage, or a new major can surprise you later.
+      </div>
+
+      <h2>4. PostgreSQL 18 example</h2>
+<pre><code>sudo apt install -y postgresql-common ca-certificates
+sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+</code></pre>
+      <div class="cmd-note">Official automated repo setup from postgresql.org/download/linux/debian. The script adds the PGDG signed source. Answer its prompts if it asks; defaults are fine for this lab.</div>
+<pre><code>sudo apt update
+sudo apt install -y postgresql-18
+</code></pre>
+      <div class="cmd-note"><code>postgresql-18</code> is the server for major 18. It pulls a matching client. This runs <code>initdb</code> for <code>18/main</code> and starts it.</div>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> Pin packages. Snapshot the VM before the first install if you like rollback. Do not install random PPAs. PGDG is the PostgreSQL project’s Apt repo — still review change control before adding it to a locked-down estate.
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+      <p>SSH to <code>pg-primary</code> only.</p>
+<pre><code>hostname   # must be pg-primary
+sudo apt update
+sudo apt install -y postgresql-common ca-certificates
+sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+sudo apt update
+sudo apt install -y postgresql-18
+</code></pre>
+      <div class="callout warn">
+        <strong>⚠️ Destructive if you purge the wrong cluster.</strong> Do not run <code>pg_dropcluster</code> or <code>apt purge postgresql-18</code> unless you intend to wipe this lab cluster.
+      </div>
+
+      <h2>7. Lab verification</h2>
+<pre><code>psql --version
+# PostgreSQL 18.x
+
+pg_lsclusters
+# 18 | main | ... | online | /var/lib/postgresql/18/main
+
+sudo systemctl status postgresql --no-pager
+sudo -u postgres psql -d postgres -c "SELECT version();"
+</code></pre>
+      <div class="cmd-note"><code>sudo -u postgres</code> uses Debian <code>peer</code> auth: the OS user name must match the role. The <code>postgres</code> OS user maps to the <code>postgres</code> superuser.</div>
+      <p><strong>Look-back (Chapter 2 live):</strong></p>
+<pre><code>sudo -u postgres psql -d postgres -c "SELECT pid, backend_type FROM pg_stat_activity ORDER BY 2;"
+ps -u postgres -o pid,cmd | head
+</code></pre>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p><code>apt install postgresql-18</code> cannot find the package.</p>
+      <h3>Possible causes</h3>
+      <ul>
+        <li>PGDG repo script did not run.</li>
+        <li><code>apt update</code> failed (clock, DNS, proxy).</li>
+        <li>Unsupported Debian codename.</li>
+      </ul>
+      <h3>Investigation</h3>
+<pre><code>ls /etc/apt/sources.list.d/
+sudo apt-cache policy postgresql-18
+. /etc/os-release && echo $VERSION_CODENAME
+</code></pre>
+      <h3>Fix</h3>
+      <p>Re-run the official <code>apt.postgresql.org.sh</code> script, then <code>apt update</code>. PGDG currently documents bookworm (12) and trixie (13).</p>
+      <h3>Verification</h3>
+      <p><code>apt-cache policy postgresql-18</code> shows a candidate from <code>apt.postgresql.org</code>.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> <code>initdb</code> creates the cluster. Packages may hide that. Know data directory vs config directory on Debian. Know <code>pg_ctl</code> vs systemd. Know you must be the PostgreSQL OS user (or use sudo) to run <code>initdb</code> by hand.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li>PGDG + <code>postgresql-18</code> on Debian.</li>
+        <li>Cluster name: <code>18/main</code>.</li>
+        <li>Config: <code>/etc/postgresql/18/main</code>. Data: <code>/var/lib/postgresql/18/main</code>.</li>
+        <li>Verify with <code>pg_lsclusters</code> and <code>SELECT version()</code>.</li>
+        <li>Standby VM still has no PostgreSQL.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td><code>postgresql-18</code></td><td>Debian’s unversioned <code>postgresql</code> metapackage</td></tr>
+          <tr><td><code>systemctl restart postgresql</code></td><td><code>reload</code> (reload does not drop connections the same way)</td></tr>
+          <tr><td>Package install</td><td>You already created <code>study_lab</code> — that is Chapter 4</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1.</strong> Why not <code>apt install postgresql</code> on Debian for this book?</p>
+        <p>That metapackage follows Debian’s default major, which may not be 18. The book pins <code>postgresql-18</code> from PGDG.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q2. True / False.</strong> After the Debian package install you must run <code>initdb</code> yourself.</p>
+        <p><strong>False</strong> for the default <code>18/main</code> cluster — the package already initialized it. You still must know what <code>initdb</code> is.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Add PGDG and install PostgreSQL 18</li>
+        <li>Show <code>pg_lsclusters</code> online</li>
+        <li>Connect as <code>postgres</code> and print <code>version()</code></li>
+        <li>Point at config vs data directories</li>
+        <li>List live <code>backend_type</code> rows (Chapter 2 look-back)</li>
+      </ul>
+
+      <div class="pager">
+        <a href="02-system-architecture.html">← Chapter 2</a>
+        <a href="04-user-tools.html">Chapter 4 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

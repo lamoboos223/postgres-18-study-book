@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>06 Configuration — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 6 · EDB: Configuration</p>
+      <h1>postgresql.conf, pg_hba.conf, reload vs restart</h1>
+      <p class="lede">If you cannot find a setting or you restart when a reload would do, you will drop sessions for no reason. This chapter also opens the host-only network so later labs can connect to 192.168.56.10.</p>
+
+      <h2>1. What you need to know</h2>
+      <p>Three files you must name on the exam:</p>
+      <table>
+        <thead><tr><th>File</th><th>Debian path</th><th>Job</th></tr></thead>
+        <tbody>
+          <tr><td><code>postgresql.conf</code></td><td><code>/etc/postgresql/18/main/postgresql.conf</code></td><td>GUC settings</td></tr>
+          <tr><td><code>pg_hba.conf</code></td><td>same directory</td><td>who may connect how</td></tr>
+          <tr><td><code>pg_ident.conf</code></td><td>same directory</td><td>OS user → role maps for ident/peer</td></tr>
+        </tbody>
+      </table>
+      <p>Live values: <code>pg_settings</code> or <code>SHOW</code>. Context column tells you if a change needs reload or restart.</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row"><div class="box teal">Incoming connection</div></div>
+        <div class="arrow">▼</div>
+        <div class="row"><div class="box red">pg_hba.conf<small>first matching line wins</small></div></div>
+        <div class="arrow">▼</div>
+        <div class="row"><div class="box amber">Authenticate (scram / peer / ...)</div></div>
+        <div class="arrow">▼</div>
+        <div class="row"><div class="box green">Role exists? CONNECT on database?</div></div>
+        <div class="arrow">▼</div>
+        <div class="row"><div class="box purple">Backend session · GUCs from postgresql.conf</div></div>
+      </div>
+      <div class="diag">
+        <div class="row">
+          <div class="box green">SIGHUP / reload<small>many GUCs, pg_hba</small></div>
+          <div class="box red">restart<small>shared_buffers, listen_addresses*, io_method</small></div>
+        </div>
+        <div class="note">*Some listen/port changes need restart. Always check pg_settings.context / pending_restart.</div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <p><code>pg_hba.conf</code> is ordered. First match wins. Typical Debian local lines use <code>peer</code>. Remote lines need a host rule and <code>listen_addresses</code> not <code>localhost</code> only.</p>
+      <p>Password method for modern PostgreSQL is <code>scram-sha-256</code>, not <code>md5</code> if you can avoid it.</p>
+      <p><code>ALTER SYSTEM SET ...</code> writes <code>postgresql.auto.conf</code> and still needs reload/restart per parameter. Prefer editing the Debian file <em>or</em> ALTER SYSTEM — not both fighting each other blindly.</p>
+      <p><code>reload</code> = SIGHUP: existing sessions keep running; they pick up reloadable GUCs on next check. <code>restart</code> = stop + start: connections drop.</p>
+
+      <h2>4. PostgreSQL 18 example</h2>
+<pre><code>sudo -u postgres psql -d postgres -c "SHOW config_file;"
+sudo -u postgres psql -d postgres -c "SHOW hba_file;"
+sudo -u postgres psql -d postgres -c "SELECT name, setting, context, pending_restart FROM pg_settings WHERE name IN ('listen_addresses','shared_buffers','wal_level','io_method','max_connections');"
+</code></pre>
+      <div class="cmd-note"><code>context</code> values such as <code>postmaster</code> mean restart. <code>sighup</code> means reload. <code>pending_restart</code> is true if you changed a restart-only GUC and have not restarted yet.</div>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> Change one thing, reload/restart, verify with <code>SHOW</code>. Do not open <code>listen_addresses = '*'</code> and <code>0.0.0.0/0 trust</code>. Use a jump network and SCRAM. Track <code>max_connections</code> vs a pooler.
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+      <p>Allow the host-only subnet to reach PostgreSQL with SCRAM. Edit as root:</p>
+<pre><code>sudo grep -n "listen_addresses" /etc/postgresql/18/main/postgresql.conf
+</code></pre>
+      <p>Set:</p>
+<pre><code>listen_addresses = '*'
+</code></pre>
+      <div class="cmd-note">For this lab, listen on all interfaces of the VM. The firewall/hypervisor still limits who can route to .10. In a tighter lab you could set <code>192.168.56.10</code> only.</div>
+      <p>Add <strong>above</strong> overly broad rejects, at the bottom of <code>pg_hba.conf</code> is fine if no later line overrides — first match wins, so put specific lab lines before <code>reject</code> if you add any:</p>
+<pre><code>host    study_lab    lab_admin    192.168.56.0/24    scram-sha-256
+host    postgres     lab_admin    192.168.56.0/24    scram-sha-256
+</code></pre>
+<pre><code>sudo pg_ctlcluster 18 main restart
+# listen_addresses is a restart-level change
+sudo pg_ctlcluster 18 main reload
+# use reload for later pg_hba-only edits
+</code></pre>
+      <div class="cmd-note"><code>pg_ctlcluster 18 main restart</code> stops and starts cluster 18/main. Existing sessions die. <code>reload</code> sends SIGHUP and keeps sessions.</div>
+      <p>From Windows or from the VM:</p>
+<pre><code>psql -h 192.168.56.10 -U lab_admin -d study_lab
+# password: lab_admin_lab_only
+</code></pre>
+
+      <h2>7. Lab verification</h2>
+<pre><code>sudo -u postgres psql -d postgres -c "SHOW listen_addresses;"
+sudo ss -lnt | grep 5432
+# 0.0.0.0:5432 or *:5432
+
+psql -h 127.0.0.1 -U lab_admin -d study_lab -c "SELECT current_user;"
+</code></pre>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p>Service is up, remote <code>psql</code> says connection refused.</p>
+      <h3>Possible causes</h3>
+      <ul>
+        <li>Still listening on localhost only (no restart after <code>listen_addresses</code>).</li>
+        <li>VM firewall (<code>nft</code>/<code>ufw</code>).</li>
+        <li>Wrong NIC / IP.</li>
+      </ul>
+      <h3>Investigation</h3>
+<pre><code>sudo -u postgres psql -d postgres -c "SHOW listen_addresses;"
+sudo ss -lntp | grep 5432
+sudo -u postgres psql -d postgres -c "SELECT * FROM pg_hba_file_rules;"
+</code></pre>
+      <h3>Diagnosis</h3>
+      <p>If <code>ss</code> shows only <code>127.0.0.1:5432</code>, the server is not bound to the host-only IP. If it binds but auth fails, that is <code>pg_hba</code> / password, not “refused.”</p>
+      <h3>Fix</h3>
+      <p>Set <code>listen_addresses</code>, restart, then fix <code>pg_hba</code> and reload.</p>
+      <h3>Verification</h3>
+      <p><code>psql -h 192.168.56.10 -U lab_admin -d study_lab</code> works.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> First matching <code>pg_hba</code> line wins. Reload vs restart. <code>pg_settings</code> is the source of truth for the running value. <code>pg_ident.conf</code> is not <code>pg_hba.conf</code>.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li>Three files: conf, hba, ident.</li>
+        <li>Reload when you can; restart when <code>context</code> says postmaster.</li>
+        <li>Lab: listen + SCRAM from 192.168.56.0/24 for <code>lab_admin</code>.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td>reload</td><td>restart</td></tr>
+          <tr><td><code>pg_hba.conf</code></td><td>GRANT privileges</td></tr>
+          <tr><td>File on disk</td><td>Value actually running (<code>SHOW</code>)</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1.</strong> You changed <code>shared_buffers</code> and ran reload. Nothing changed. Why?</p>
+        <p><code>shared_buffers</code> is a postmaster / restart parameter. <code>pending_restart</code> will be true until restart.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q2. True / False.</strong> A later <code>pg_hba</code> line can override an earlier match for the same connection.</p>
+        <p><strong>False.</strong> First match wins. Order is the whole point.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Find the three config files</li>
+        <li>Explain reload vs restart</li>
+        <li>Read <code>pg_settings.context</code></li>
+        <li>Open host-only SCRAM for <code>lab_admin</code></li>
+        <li>Diagnose connection refused vs auth failed</li>
+      </ul>
+
+      <div class="pager">
+        <a href="05-database-clusters.html">← Chapter 5</a>
+        <a href="07-data-dictionary.html">Chapter 7 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

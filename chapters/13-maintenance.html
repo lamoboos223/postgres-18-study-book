@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>13 Maintenance — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 13 · EDB: Routine Maintenance Tasks</p>
+      <h1>VACUUM, ANALYZE, bloat, wraparound</h1>
+      <p class="lede">MVCC leftover versions do not vanish at COMMIT. VACUUM is the janitor. Autovacuum is that janitor on a timer. VACUUM FULL is a rewrite, not “better VACUUM.”</p>
+
+      <h2>1. What you need to know</h2>
+      <p><code>VACUUM</code> marks dead tuples reusable and updates the visibility map. <code>ANALYZE</code> refreshes planner stats. <code>VACUUM FREEZE</code> advances relfrozenxid to avoid transaction-ID wraparound. <code>REINDEX</code> rebuilds indexes. <code>VACUUM FULL</code> rewrites the table (ACCESS EXCLUSIVE, extra disk).</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row"><div class="box amber">UPDATE / DELETE</div></div>
+        <div class="arrow">▼</div>
+        <div class="row"><div class="box pink">Dead row versions still on the page</div></div>
+        <div class="arrow">▼ VACUUM</div>
+        <div class="row"><div class="box green">Space reusable for new versions</div></div>
+        <div class="arrow">▼ VACUUM FULL (rarely)</div>
+        <div class="row"><div class="box red">New file, old file dropped · locks everyone</div></div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <p>Autovacuum launcher starts workers per table based on dead-tuple scale factors. If it cannot keep up (long transactions, too few workers, throttling), tables bloat. Wraparound: if <code>relfrozenxid</code> gets too old, PostgreSQL will eventually refuse writes — freeze vacuum is mandatory, not optional hygiene.</p>
+      <p>SQL Server has no VACUUM because it does not keep heap versions the same way. Do not look for a SQL Server twin.</p>
+
+      <h2>4. PostgreSQL 18 example</h2>
+<pre><code>VACUUM (VERBOSE) app.orders;
+ANALYZE app.orders;
+VACUUM (FREEZE, VERBOSE) app.orders;
+</code></pre>
+      <div class="cmd-note"><code>VERBOSE</code> prints what the janitor did. Regular VACUUM does not shrink the file to the OS; it makes space reusable internally.</div>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> Watch <code>pg_stat_progress_vacuum</code>, <code>n_dead_tup</code>, wraparound age. Do not schedule VACUUM FULL nightly “just in case.” Fix the workload or fillfactor / HOT updates first.
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+<pre><code>sudo -u postgres psql -d study_lab
+</code></pre>
+<pre><code>-- bloat demo on a copy, not production
+CREATE TABLE app.orders_bloat AS TABLE app.orders;
+INSERT INTO app.orders_bloat SELECT * FROM app.orders_bloat; -- grow if needed
+UPDATE app.orders_bloat SET status = status;
+SELECT n_live_tup, n_dead_tup, last_vacuum, last_autovacuum
+FROM pg_stat_user_tables WHERE relname = 'orders_bloat';
+VACUUM (VERBOSE) app.orders_bloat;
+SELECT n_live_tup, n_dead_tup FROM pg_stat_user_tables WHERE relname = 'orders_bloat';
+</code></pre>
+      <div class="callout warn">
+        <strong>⚠️ Destructive.</strong> <code>VACUUM FULL app.orders;</code> locks the real orders table. Skip FULL on <code>app.orders</code>. If you try FULL, use <code>orders_bloat</code> only.
+      </div>
+
+      <h2>7. Lab verification</h2>
+<pre><code>SELECT relname, n_dead_tup, last_vacuum
+FROM pg_stat_user_tables
+WHERE schemaname = 'app';
+</code></pre>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p>Table grows forever; autovacuum seems idle.</p>
+      <h3>Investigation</h3>
+<pre><code>SELECT pid, state, xact_start, query FROM pg_stat_activity WHERE state = 'idle in transaction';
+SELECT relname, n_dead_tup, vacuum_count, autovacuum_count FROM pg_stat_user_tables;
+</code></pre>
+      <h3>Fix</h3>
+      <p>Kill or commit the old transaction. Then VACUUM. Then ask why the app left a session open.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> VACUUM vs VACUUM FULL vs ANALYZE vs REINDEX. Autovacuum exists because humans forget. Wraparound is a real outage class.
+      </div>
+      <div class="callout remember">
+        <strong>Remember.</strong> VACUUM = reclaim visibility leftovers for normal operation. VACUUM FULL = rewrite.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li>Dead tuples → VACUUM → reuse.</li>
+        <li>ANALYZE → planner.</li>
+        <li>FULL is a last resort.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td>VACUUM</td><td>VACUUM FULL</td></tr>
+          <tr><td>DELETE</td><td>TRUNCATE (TRUNCATE is DDL-like; rewrites/empties)</td></tr>
+          <tr><td>REINDEX</td><td>VACUUM</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1.</strong> After VACUUM, <code>du</code> on the file did not drop. Is VACUUM broken?</p>
+        <p>Usually no. Regular VACUUM returns pages to the table’s free space map, not necessarily to the OS.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Generate dead tuples and VACUUM them</li>
+        <li>Read <code>n_dead_tup</code></li>
+        <li>Explain wraparound in one sentence</li>
+        <li>Refuse VACUUM FULL as a habit</li>
+      </ul>
+
+      <div class="pager">
+        <a href="12-backup-recovery.html">← Chapter 12</a>
+        <a href="14-moving-data.html">Chapter 14 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

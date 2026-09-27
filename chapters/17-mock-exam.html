@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>17 Mock exam — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Appendix</p>
+      <h1>Final mock exam</h1>
+      <p class="lede">Cover the answers. This is practice in the style of Essentials thinking, not leaked EDB items.</p>
+
+      <h2>Questions</h2>
+      <div class="q">
+        <p><strong>1.</strong> A PostgreSQL cluster is:</p>
+        <ol type="A">
+          <li>Two servers with automatic failover</li>
+          <li>All databases of one instance in one data directory</li>
+          <li>One schema named public</li>
+          <li>The postgres database only</li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>2.</strong> Default <code>wal_level</code> in PostgreSQL 18 is:</p>
+        <ol type="A">
+          <li>minimal</li>
+          <li>replica</li>
+          <li>logical</li>
+          <li>archive (as a distinct current value)</li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>3. True / False.</strong> Changing <code>io_method</code> can be done with reload only.</p>
+      </div>
+      <div class="q">
+        <p><strong>4.</strong> After COMMIT (default synchronous_commit), which is guaranteed on disk?</p>
+        <ol type="A">
+          <li>All dirty heap pages for the table</li>
+          <li>WAL for that commit</li>
+          <li>A checkpoint</li>
+          <li>VACUUM of dead tuples</li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>5.</strong> You granted SELECT on <code>app.users</code> but omitted schema USAGE. What happens?</p>
+      </div>
+      <div class="q">
+        <p><strong>6. Scenario.</strong> Remote connection refused; <code>ss</code> shows 127.0.0.1:5432 only. First fix?</p>
+      </div>
+      <div class="q">
+        <p><strong>7.</strong> Best tool for PITR:</p>
+        <ol type="A">
+          <li>pg_dump only</li>
+          <li>Base backup + WAL archive</li>
+          <li>COPY TO</li>
+          <li>EXPLAIN ANALYZE</li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>8. What happens if</strong> a physical slot stays inactive for days?</p>
+      </div>
+      <div class="q">
+        <p><strong>9.</strong> VACUUM FULL vs VACUUM — one sentence each.</p>
+      </div>
+      <div class="q">
+        <p><strong>10. Scenario.</strong> Standby connected, replay_lsn lags sent_lsn. Name two things to inspect.</p>
+      </div>
+      <div class="q">
+        <p><strong>11. True / False.</strong> <code>\c study_lab</code> is the same mechanism as SQL Server USE.</p>
+      </div>
+      <div class="q">
+        <p><strong>12.</strong> Which file answers “may this host connect as this role to this database”?</p>
+      </div>
+
+      <h2>Answer key</h2>
+      <div class="q">
+        <p><strong>1 B.</strong> Official cluster definition. A is HA marketing.</p>
+        <p><strong>2 B.</strong> Default is <code>replica</code>. <code>archive</code> is a legacy alias mapped to replica, not a separate modern setting you should choose.</p>
+        <p><strong>3 False.</strong> <code>io_method</code> is set at server start (postmaster). Restart required.</p>
+        <p><strong>4 B.</strong> WAL first. Heap pages may still be dirty.</p>
+        <p><strong>5</strong> Permission denied for schema <code>app</code>. USAGE is required to resolve names.</p>
+        <p><strong>6</strong> <code>listen_addresses</code> still localhost — change it and <em>restart</em>. Then check firewall / pg_hba if bind is correct but auth fails.</p>
+        <p><strong>7 B.</strong> Dump is a logical snapshot, not PITR.</p>
+        <p><strong>8</strong> Primary keeps WAL for that slot → disk growth → eventual outage. Drop or repair the standby.</p>
+        <p><strong>9</strong> VACUUM reclaims dead tuples in place for reuse. VACUUM FULL rewrites the table, takes a heavy lock, can return space to the OS.</p>
+        <p><strong>10</strong> Standby apply (queries, conflicts, IO). Compare LSN columns in <code>pg_stat_replication</code>. Check hot standby conflicts / <code>max_standby_streaming_delay</code>.</p>
+        <p><strong>11 False.</strong> <code>\c</code> opens a new connection to another database.</p>
+        <p><strong>12</strong> <code>pg_hba.conf</code> (then role/password, then GRANT).</p>
+      </div>
+
+      <div class="pager">
+        <a href="16-cheat-sheets.html">← Cheat sheets</a>
+        <a href="../index.html">Home</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>00 Front matter — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Front matter</p>
+      <h1>How this book works, and how the lab VMs must look</h1>
+      <p class="lede">Do this once. Every later lab assumes these hostnames, IPs, and names. PostgreSQL is <em>not</em> installed here.</p>
+
+      <h2>1. What you need to know</h2>
+      <p>You are an experienced engineer, not a career DBA. This book teaches PostgreSQL <em>administration</em>: how a cluster is laid out, why WAL exists, how roles differ from SQL Server logins, and how to recover a database you actually care about.</p>
+      <p>The exam this book aims at is <strong>EDB Essentials for PostgreSQL v18</strong> — community PostgreSQL 18, not EDB Postgres Advanced Server / Oracle-compatibility extras.</p>
+      <ul>
+        <li>Chapters 1–2 are architecture. You can read them before the VMs are perfect.</li>
+        <li>The first PostgreSQL install is Chapter 3, on <code>pg-primary</code> only.</li>
+        <li><code>pg-standby</code> stays unused until Chapter 15. Do not “helpfully” pre-build a replica.</li>
+      </ul>
+
+      <h2>2. Mental model</h2>
+      <div class="stack">
+        <div>Your Windows PC — you open this HTML book here</div>
+        <div>SSH into Debian VMs — you type every lab command there</div>
+        <div>pg-primary 192.168.56.10 — the only live database until Chapter 15</div>
+        <div>pg-standby 192.168.56.11 — dark until streaming replication</div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <h3>Why two VMs</h3>
+      <p>Backup is a copy of data. Replication is a running second server that replays WAL. Those are different tools with different failure modes. The book keeps a second machine so Chapter 15 is not a thought experiment.</p>
+      <h3>Why these names never change</h3>
+      <p>Certification questions punish sloppy vocabulary. The book uses one set of nouns so “database vs schema” and “role vs OS user” stay distinct.</p>
+      <table>
+        <thead><tr><th>Name</th><th>What it is</th><th>When it appears</th></tr></thead>
+        <tbody>
+          <tr><td><code>labhost</code></td><td>Your sudo OS user on each VM</td><td>Now</td></tr>
+          <tr><td><code>postgres</code></td><td>OS account <em>and</em> default superuser role</td><td>Chapter 3</td></tr>
+          <tr><td><code>lab_admin</code></td><td>Practice DBA role: <code>CREATEDB</code>, <code>CREATEROLE</code></td><td>Chapter 4 / 9</td></tr>
+          <tr><td><code>app_user</code></td><td>Least-privilege application role</td><td>Chapter 9</td></tr>
+          <tr><td><code>replicator</code></td><td>Streaming replication login</td><td>Chapter 15</td></tr>
+          <tr><td><code>study_lab</code></td><td>The only application database</td><td>Chapter 4</td></tr>
+          <tr><td><code>app</code>, <code>ops</code>, <code>audit</code></td><td>Schemas inside <code>study_lab</code></td><td>Chapter 8</td></tr>
+        </tbody>
+      </table>
+
+      <h2>4. PostgreSQL 18 example</h2>
+      <p>There is no <code>psql</code> yet. The “example” is making the VMs tell you who they are.</p>
+<pre><code>hostname
+hostname -I
+cat /etc/os-release
+ip -4 addr show
+</code></pre>
+      <div class="cmd-note">
+        <code>hostname</code> prints the kernel hostname. <code>hostname -I</code> lists IPv4/IPv6 addresses. <code>/etc/os-release</code> is the Debian version source of truth. <code>ip -4 addr</code> shows which NIC owns 192.168.56.10 or .11.
+      </div>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> Real estates name hosts on purpose: <code>pg-prod-a</code>, not <code>debian</code>. DNS, TLS certs, and runbooks all assume a stable hostname. Changing it later is cheap on a lab VM and expensive in production.
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+      <p>On each Debian VM, set the name and a host-only IP that matches the book. Adjust the NIC name if yours is not <code>enp0s8</code>.</p>
+      <p><strong>On the primary VM</strong></p>
+<pre><code>sudo hostnamectl set-hostname pg-primary
+echo '192.168.56.10 pg-primary
+192.168.56.11 pg-standby' | sudo tee -a /etc/hosts
+</code></pre>
+      <div class="cmd-note">
+        <code>hostnamectl set-hostname</code> writes the systemd hostname so it survives reboot. The <code>/etc/hosts</code> lines let the VMs resolve each other without DNS.
+      </div>
+      <p><strong>On the standby VM</strong></p>
+<pre><code>sudo hostnamectl set-hostname pg-standby
+echo '192.168.56.10 pg-primary
+192.168.56.11 pg-standby' | sudo tee -a /etc/hosts
+</code></pre>
+      <p>Give each VM a static address on the same host-only network your hypervisor already uses. If you already have 192.168.56.10 / .11, keep them and only fix hostnames.</p>
+      <div class="callout warn">
+        <strong>⚠️ Destructive if you reuse a production NIC.</strong> Do not point a work laptop’s corporate interface at these IPs. Only change the host-only / internal adapter you created for this lab.
+      </div>
+
+      <h2>7. Lab verification</h2>
+      <p>On <code>pg-primary</code>:</p>
+<pre><code>hostname
+# expected: pg-primary
+
+hostname -I
+# must include 192.168.56.10
+
+ping -c 2 192.168.56.11
+# expected: replies from pg-standby
+
+command -v psql || echo "psql not installed yet — correct for Chapter 00/01"
+</code></pre>
+      <p>On <code>pg-standby</code>:</p>
+<pre><code>hostname
+# expected: pg-standby
+
+ping -c 2 192.168.56.10
+</code></pre>
+      <p>From Windows (PowerShell), SSH should work:</p>
+<pre><code>ssh labhost@192.168.56.10
+ssh labhost@192.168.56.11
+</code></pre>
+      <div class="cmd-note">
+        If your sudo user is not named <code>labhost</code>, keep your real username. The book only uses <code>labhost</code> as a label. The hostnames and IPs are the part that must match.
+      </div>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p>You can SSH to a VM, but <code>ping 192.168.56.11</code> fails from the primary.</p>
+      <h3>Possible causes</h3>
+      <ul>
+        <li>Standby is powered off or on a different virtual network.</li>
+        <li>Wrong NIC got the address (NAT vs host-only).</li>
+        <li>Hypervisor firewall / “host-only” adapter not installed on Windows.</li>
+      </ul>
+      <h3>Investigation</h3>
+<pre><code>ip -4 addr
+ping -c 2 192.168.56.11
+ip route
+</code></pre>
+      <h3>Diagnosis</h3>
+      <p>If <code>192.168.56.10</code> is missing, the primary is not on the lab network. If the address exists but ping fails, the packets are not reaching the other VM — hypervisor network, not PostgreSQL.</p>
+      <h3>Fix</h3>
+      <p>Attach both VMs to the same host-only/internal network and assign the book IPs there. Do not “fix” this by installing PostgreSQL.</p>
+      <h3>Verification</h3>
+      <p>Two-way ping between .10 and .11.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> The exam will not ask your VM hostname. It <em>will</em> punish mixing these words: cluster, instance, database, schema, role, OS user. Front matter exists so those words stay stable.
+      </div>
+      <ul>
+        <li>This book installs community PostgreSQL 18 from PGDG in Chapter 3.</li>
+        <li>EDB Essentials for PostgreSQL ≠ EDB Postgres AI Database Essentials (that exam is Enterprise Postgres / Oracle-compatible).</li>
+        <li>Debian package layout (<code>/etc/postgresql/18/main</code>) is a packaging convention, not a PostgreSQL-on-every-OS law.</li>
+      </ul>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li>Book lives on Windows; labs live on Debian.</li>
+        <li><code>pg-primary</code> .10 now; <code>pg-standby</code> .11 later.</li>
+        <li>No PostgreSQL until Chapter 3.</li>
+        <li>One application database: <code>study_lab</code>.</li>
+        <li>Never run lab <code>DROP</code>/<code>promote</code> against anything that is not this lab.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td>This HTML book</td><td>The PostgreSQL server</td></tr>
+          <tr><td>OS user <code>labhost</code></td><td>Database role <code>lab_admin</code></td></tr>
+          <tr><td>Two VMs</td><td>Streaming replication (not until Ch 15)</td></tr>
+          <tr><td>Debian 12 vs 13</td><td>PostgreSQL 18 — the OS can differ; the server version must be 18</td></tr>
+        </tbody>
+      </table>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>SSH into both VMs</li>
+        <li>Show hostnames <code>pg-primary</code> and <code>pg-standby</code></li>
+        <li>Ping .10 ↔ .11</li>
+        <li>Explain why PostgreSQL is not installed yet</li>
+        <li>Name the future database and four roles</li>
+      </ul>
+
+      <div class="pager">
+        <a href="../index.html">← Home</a>
+        <a href="01-architectural-overview.html">Chapter 1 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

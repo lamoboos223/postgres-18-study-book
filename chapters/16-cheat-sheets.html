@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>16 Cheat sheets — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Appendix</p>
+      <h1>Cheat sheets</h1>
+      <p class="lede">Commands from the cumulative lab. Debian 18/main. Hosts <code>pg-primary</code> .10 and <code>pg-standby</code> .11.</p>
+
+      <h2>Service management</h2>
+<pre><code>sudo systemctl status postgresql
+sudo pg_ctlcluster 18 main status
+sudo pg_ctlcluster 18 main reload
+sudo pg_ctlcluster 18 main restart
+pg_lsclusters
+pg_isready
+</code></pre>
+
+      <h2>psql</h2>
+<pre><code>sudo -u postgres psql -d postgres
+psql -h 192.168.56.10 -U lab_admin -d study_lab
+\l  \c  \dn  \dt  \du  \d app.users  \x  \q  \conninfo
+</code></pre>
+
+      <h2>Databases and roles</h2>
+<pre><code>CREATE ROLE lab_admin LOGIN CREATEDB CREATEROLE PASSWORD '...';
+CREATE DATABASE study_lab OWNER lab_admin;
+CREATE SCHEMA app;
+GRANT CONNECT ON DATABASE study_lab TO app_user;
+GRANT USAGE ON SCHEMA app TO app_user;
+GRANT SELECT ON ALL TABLES IN SCHEMA app TO app_user;
+</code></pre>
+
+      <h2>Configuration</h2>
+<pre><code>SHOW data_directory; SHOW config_file; SHOW hba_file;
+SELECT name, setting, context, pending_restart FROM pg_settings WHERE name = 'shared_buffers';
+-- Debian: /etc/postgresql/18/main/postgresql.conf
+--          /etc/postgresql/18/main/pg_hba.conf
+</code></pre>
+      <table>
+        <thead><tr><th>GUC (PG 18)</th><th>Default / note</th><th>Reload or restart</th></tr></thead>
+        <tbody>
+          <tr><td><code>wal_level</code></td><td><code>replica</code></td><td>restart</td></tr>
+          <tr><td><code>max_wal_senders</code></td><td><code>10</code></td><td>restart</td></tr>
+          <tr><td><code>hot_standby</code></td><td><code>on</code></td><td>restart (standby)</td></tr>
+          <tr><td><code>io_method</code></td><td><code>worker</code></td><td>restart</td></tr>
+          <tr><td><code>listen_addresses</code></td><td>often localhost until you change it</td><td>restart</td></tr>
+          <tr><td><code>log_min_duration_statement</code></td><td>off / -1</td><td>reload</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Monitoring</h2>
+<pre><code>SELECT * FROM pg_stat_activity;
+SELECT * FROM pg_stat_replication;
+SELECT * FROM pg_stat_database WHERE datname = 'study_lab';
+SELECT * FROM pg_locks WHERE NOT granted;
+SELECT * FROM pg_replication_slots;
+</code></pre>
+
+      <h2>Backup and restore</h2>
+<pre><code>pg_dump -d study_lab -Fc -f study_lab.dump
+pg_restore -d study_lab_restore study_lab.dump
+pg_dumpall -g          # roles only, common pattern
+pg_basebackup -h 127.0.0.1 -D /path -Fp -Xs -P
+</code></pre>
+
+      <h2>Maintenance</h2>
+<pre><code>VACUUM (VERBOSE) app.orders;
+ANALYZE app.orders;
+REINDEX TABLE app.orders;
+-- VACUUM FULL only when you accept the lock
+</code></pre>
+
+      <h2>Replication</h2>
+<pre><code>CREATE ROLE replicator LOGIN REPLICATION PASSWORD '...';
+SELECT pg_create_physical_replication_slot('standby1');
+pg_basebackup -h 192.168.56.10 -U replicator -D ... -Fp -Xs -P -R --slot=standby1
+SELECT pg_is_in_recovery();
+-- promote (lab only, after fencing the old primary)
+sudo pg_ctlcluster 18 main promote
+# or: SELECT pg_promote();
+</code></pre>
+
+      <h2>Important views</h2>
+      <table>
+        <thead><tr><th>View</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td><code>pg_stat_activity</code></td><td>Who is connected, waits, idle in transaction</td></tr>
+          <tr><td><code>pg_stat_replication</code></td><td>Standbys, LSNs, sync state</td></tr>
+          <tr><td><code>pg_stat_database</code></td><td>Commits, hits/reads</td></tr>
+          <tr><td><code>pg_stat_bgwriter</code></td><td>Checkpoint / bgwriter activity</td></tr>
+          <tr><td><code>pg_stat_io</code></td><td>I/O breakdown (use in PG 18)</td></tr>
+          <tr><td><code>pg_locks</code></td><td>Blocking</td></tr>
+          <tr><td><code>pg_settings</code></td><td>Running GUCs</td></tr>
+          <tr><td><code>pg_hba_file_rules</code></td><td>Parsed hba</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Exam must-know (say these without the book)</h2>
+      <ul>
+        <li>Cluster vs database vs schema</li>
+        <li>Process per connection</li>
+        <li>WAL vs data files vs checkpoint</li>
+        <li>MVCC + VACUUM vs VACUUM FULL</li>
+        <li>Roles cluster-wide; GRANT per object</li>
+        <li>pg_hba first match; reload vs restart</li>
+        <li>pg_dump vs pg_basebackup; backup ≠ replica</li>
+        <li>Physical streaming, slots, async vs sync, promote</li>
+        <li>PG 18: <code>io_method</code> is not “skip WAL”</li>
+      </ul>
+
+      <div class="pager">
+        <a href="15-replication.html">← Chapter 15</a>
+        <a href="17-mock-exam.html">Mock exam →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

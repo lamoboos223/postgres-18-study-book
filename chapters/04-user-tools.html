@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>04 User tools — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 4 · EDB: User Tools — Command Line Interfaces</p>
+      <h1>psql, helpers, and the first lab roles</h1>
+      <p class="lede"><code>psql</code> is the exam’s client. GUIs exist (pgAdmin). This chapter makes you fast on the CLI and creates <code>lab_admin</code> plus empty <code>study_lab</code>.</p>
+
+      <h2>1. What you need to know</h2>
+      <p><code>psql</code> is an interactive terminal. Backslash commands are <strong>client</strong> meta-commands; they are not SQL. SQL ends with <code>;</code>. Meta-commands start with <code>\</code>.</p>
+      <p>Also know: <code>pg_isready</code>, <code>pg_lsclusters</code>, <code>pg_ctlcluster</code>, <code>createdb</code>/<code>createuser</code> (thin wrappers around SQL).</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row">
+          <div class="box teal">psql process<small>your terminal</small></div>
+          <div class="box purple">backend process<small>on the server</small></div>
+        </div>
+        <div class="arrow">SQL over the wire → · results ←</div>
+        <div class="row">
+          <div class="box amber">\l \d \c \du<small>psql only</small></div>
+          <div class="box green">SELECT ... ;<small>server SQL</small></div>
+        </div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <p>Connection string pieces: host, port, database, user. Local Debian default: Unix socket, port 5432, peer auth for the matching OS user.</p>
+      <table>
+        <thead><tr><th>Command</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>\l</code></td><td>List databases</td></tr>
+          <tr><td><code>\c study_lab</code></td><td>Reconnect to that database (new session)</td></tr>
+          <tr><td><code>\dn</code></td><td>List schemas</td></tr>
+          <tr><td><code>\dt</code></td><td>List tables</td></tr>
+          <tr><td><code>\du</code></td><td>List roles</td></tr>
+          <tr><td><code>\x</code></td><td>Expanded display</td></tr>
+          <tr><td><code>\timing</code></td><td>Show client elapsed time</td></tr>
+          <tr><td><code>\q</code></td><td>Quit</td></tr>
+          <tr><td><code>\?</code></td><td>Help for meta-commands</td></tr>
+          <tr><td><code>\h VACUUM</code></td><td>SQL help</td></tr>
+        </tbody>
+      </table>
+      <p><code>createuser</code> and <code>createdb</code> are convenience binaries. In this book we mostly use SQL so you see the real privileges.</p>
+
+      <h2>4. PostgreSQL 18 example</h2>
+<pre><code>sudo -u postgres psql -d postgres
+</code></pre>
+      <div class="cmd-note">Starts <code>psql</code> as the <code>postgres</code> OS user, database <code>postgres</code>. You get a superuser session via peer auth.</div>
+<pre><code>\conninfo
+\l
+\du
+</code></pre>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> Prefer a personal superuser-equivalent only on jump hosts, not on laptops pointed at prod. Use <code>~/.pgpass</code> (mode 0600) or a secret manager — never commit passwords. <code>psql -v ON_ERROR_STOP=1 -f script.sql</code> is how you run change scripts safely.
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+<pre><code>sudo -u postgres psql -d postgres
+</code></pre>
+      <p>Inside <code>psql</code>:</p>
+<pre><code>CREATE ROLE lab_admin LOGIN CREATEDB CREATEROLE PASSWORD 'lab_admin_lab_only';
+CREATE DATABASE study_lab OWNER lab_admin;
+\l
+\du
+\c study_lab
+SELECT current_user, current_database();
+\q
+</code></pre>
+      <div class="cmd-note">
+        <code>LOGIN</code> makes a role that can connect (a “user”). <code>CREATEDB</code> / <code>CREATEROLE</code> are DBA-practice flags, not superuser. <code>CREATE DATABASE</code> copies <code>template1</code> by default. <code>OWNER lab_admin</code> makes <code>lab_admin</code> own the database.
+      </div>
+      <p>Connect as the new role (password auth may still be local-only; if peer fails, use <code>sudo -u postgres psql</code> and <code>SET ROLE</code> for now — Chapter 6 fixes <code>pg_hba</code>):</p>
+<pre><code>sudo -u postgres psql -d study_lab -c "SET ROLE lab_admin; SELECT current_user;"
+</code></pre>
+
+      <h2>7. Lab verification</h2>
+<pre><code>sudo -u postgres psql -d postgres -c "\l study_lab"
+sudo -u postgres psql -d postgres -c "SELECT rolname, rolsuper, rolcreatedb, rolcreaterole FROM pg_roles WHERE rolname IN ('postgres','lab_admin');"
+</code></pre>
+      <p>Expect <code>study_lab</code> listed, <code>lab_admin</code> not superuser, <code>rolcreatedb</code> and <code>rolcreaterole</code> true.</p>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p><code>psql: error: connection refused</code> or <code>Peer authentication failed</code>.</p>
+      <h3>Possible causes</h3>
+      <ul>
+        <li>Service down.</li>
+        <li>Wrong user: <code>labhost</code> is not a database role yet.</li>
+        <li>Peer requires OS name = role name.</li>
+      </ul>
+      <h3>Investigation</h3>
+<pre><code>pg_isready
+pg_lsclusters
+sudo -u postgres psql -d postgres -c '\conninfo'
+</code></pre>
+      <h3>Fix</h3>
+      <p>Use <code>sudo -u postgres psql</code> until Chapter 6 adds password/host rules. Do not create a superuser named after your login unless you intend to.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> <code>\c</code> reconnects. <code>\d</code> describes objects. Role vs login: in PostgreSQL a role with <code>LOGIN</code> is what people call a user. <code>psql</code> is not the server.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li>SQL uses <code>;</code>. Meta-commands use <code>\</code>.</li>
+        <li><code>lab_admin</code> + empty <code>study_lab</code> now exist.</li>
+        <li><code>createdb</code>/<code>createuser</code> = SQL wrappers.</li>
+        <li><code>pg_isready</code> checks the listener, not your SQL skill.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td>OS user <code>postgres</code></td><td>Role <code>lab_admin</code></td></tr>
+          <tr><td><code>\c</code></td><td>SQL Server <code>USE</code> inside one backend</td></tr>
+          <tr><td><code>\d table</code></td><td><code>SELECT * FROM table</code></td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1.</strong> <code>\l</code> fails with a syntax error if you type <code>\l;</code> as SQL in some contexts — why is <code>\l</code> not sent to the server as SQL?</p>
+        <p>It is a <code>psql</code> meta-command. The client expands it (to a catalog query) or handles it locally.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q2. True / False.</strong> <code>CREATE ROLE lab_admin LOGIN</code> is cluster-wide, not only for <code>study_lab</code>.</p>
+        <p><strong>True.</strong> Roles live in the cluster. Ownership/grants are per object.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Open <code>psql</code> as <code>postgres</code></li>
+        <li>List databases and roles</li>
+        <li>Create <code>lab_admin</code> and <code>study_lab</code></li>
+        <li>Explain <code>\c</code> vs <code>USE</code></li>
+        <li>Use <code>pg_isready</code></li>
+      </ul>
+
+      <div class="pager">
+        <a href="03-installation.html">← Chapter 3</a>
+        <a href="05-database-clusters.html">Chapter 5 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

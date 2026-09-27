@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/book.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main id="main" class="page cover">
+      <p class="kicker">EDB Essentials for PostgreSQL v18</p>
+      <h1>A visual study book for people who can already write SQL</h1>
+      <p class="lede">This is not a slide dump. It is a textbook, a Debian lab manual, and a certification revision guide. Architecture first. Install in Chapter 3. The same <code>study_lab</code> environment grows until you have a primary, a standby, and a failover drill.</p>
+
+      <div class="hero-card">
+        <p><strong>Locked lab world:</strong> <code>pg-primary</code> 192.168.56.10 · <code>pg-standby</code> 192.168.56.11 · database <code>study_lab</code> · roles <code>postgres</code>, <code>lab_admin</code>, <code>app_user</code>, <code>replicator</code></p>
+      </div>
+
+      <h2>How to study a chapter</h2>
+      <ol>
+        <li>Read the mental model and the diagram.</li>
+        <li>Read the deep explanation — do not skip “why PostgreSQL has this.”</li>
+        <li>Type the examples. Do not only read them.</li>
+        <li>Run the lab and the verification commands.</li>
+        <li>Do the questions with the answers covered.</li>
+      </ol>
+
+      <h2>Open chapters</h2>
+      <div class="toc-grid">
+        <a href="chapters/00-front-matter.html"><span>00</span><b>Front matter — VM rules</b></a>
+        <a href="chapters/01-architectural-overview.html"><span>01</span><b>Architectural overview</b></a>
+        <a href="chapters/02-system-architecture.html"><span>02</span><b>System architecture</b></a>
+        <a href="chapters/03-installation.html"><span>03</span><b>Installation</b></a>
+        <a href="chapters/04-user-tools.html"><span>04</span><b>User tools</b></a>
+        <a href="chapters/05-database-clusters.html"><span>05</span><b>Database clusters</b></a>
+        <a href="chapters/06-configuration.html"><span>06</span><b>Configuration</b></a>
+        <a href="chapters/07-data-dictionary.html"><span>07</span><b>Data dictionary</b></a>
+        <a href="chapters/08-managing-databases.html"><span>08</span><b>Creating and managing databases</b></a>
+        <a href="chapters/09-security.html"><span>09</span><b>Database security</b></a>
+        <a href="chapters/10-monitoring.html"><span>10</span><b>Monitoring</b></a>
+        <a href="chapters/11-sql-primer.html"><span>11</span><b>SQL primer</b></a>
+        <a href="chapters/12-backup-recovery.html"><span>12</span><b>Backup, recovery, PITR</b></a>
+        <a href="chapters/13-maintenance.html"><span>13</span><b>Routine maintenance</b></a>
+        <a href="chapters/14-moving-data.html"><span>14</span><b>Moving data</b></a>
+        <a href="chapters/15-replication.html"><span>15</span><b>Replication and HA</b></a>
+        <a href="chapters/16-cheat-sheets.html"><span>16</span><b>Cheat sheets</b></a>
+        <a href="chapters/17-mock-exam.html"><span>17</span><b>Mock exam</b></a>
+      </div>
+
+      <h2>Official course spine</h2>
+      <p>Chapter numbers 1–15 match the EDB Essentials for PostgreSQL outline. Diagrams are colorful labeled boxes, not character illustrations.</p>
+    </main>
+  </div>
+  <script src="assets/js/book.js"></script>
+</body>
+</html>

@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>14 Moving data — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 14 · EDB: Moving Data</p>
+      <h1>COPY, dump data-only, and what FDW is for</h1>
+      <p class="lede">Bulk load is <code>COPY</code>, not thousands of single-row INSERTs. Logical dump can be data-only. Foreign Data Wrappers exist; Essentials wants you to know the name, not build an enterprise mesh.</p>
+
+      <h2>1. What you need to know</h2>
+      <p><code>COPY table FROM/TO</code> is the server-side bulk API. <code>\copy</code> is the <code>psql</code> client-side variant (reads a file on the client). <code>pg_dump --data-only</code> dumps DML without DDL.</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row">
+          <div class="box green">COPY<small>server file or program</small></div>
+          <div class="box teal">\copy<small>your laptop/VM file</small></div>
+          <div class="box amber">pg_dump --data-only<small>SQL or custom</small></div>
+        </div>
+        <div class="arrow">▼ not the same</div>
+        <div class="row"><div class="box red">pg_basebackup<small>whole cluster bytes</small></div></div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <p>Server <code>COPY FROM '/path'</code> requires the file to be visible to the server OS user and superuser (or a granted <code>COPY</code> privilege / <code>pg_read_server_files</code> in modern versions — do not memorize every grant name; know that server-side COPY is privileged).</p>
+      <p><code>\copy</code> streams through the client. That is what you use from a workstation.</p>
+      <p>FDW: <code>CREATE EXTENSION postgres_fdw;</code> then a foreign server — query another PostgreSQL as if it were a table. Essentials: “exists, used for moving/querying remote data,” not a full course.</p>
+
+      <h2>4. PostgreSQL 18 example</h2>
+<pre><code>\copy app.products TO '/tmp/products.csv' WITH (FORMAT csv, HEADER true);
+\copy app.products FROM '/tmp/products.csv' WITH (FORMAT csv, HEADER true);
+</code></pre>
+      <div class="cmd-note">The second command would duplicate rows unless you truncated or used a staging table. Use a staging table in the lab.</div>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> Disable indexes or load into a staging table, then INSERT…SELECT, for huge loads. Watch WAL generation. <code>COPY</code> still writes WAL (unless you use unlogged tricks you should not use blindly).
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+<pre><code>sudo -u postgres psql -d study_lab
+</code></pre>
+<pre><code>CREATE TABLE app.products_stage (LIKE app.products INCLUDING ALL);
+\copy app.products TO '/tmp/products.csv' WITH (FORMAT csv, HEADER true)
+\copy app.products_stage FROM '/tmp/products.csv' WITH (FORMAT csv, HEADER true)
+SELECT count(*) FROM app.products_stage;
+</code></pre>
+<pre><code>sudo -u postgres pg_dump -d study_lab -a -t app.users -f /tmp/users_data.sql
+# -a data-only, -t table
+</code></pre>
+
+      <h2>7. Lab verification</h2>
+<pre><code>head /tmp/products.csv
+sudo -u postgres psql -d study_lab -c "SELECT count(*) FROM app.products_stage;"
+wc -l /tmp/users_data.sql
+</code></pre>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p><code>COPY ... FROM '/tmp/products.csv'</code> → permission denied.</p>
+      <h3>Diagnosis</h3>
+      <p>You used server COPY. The server cannot read your file, or you are not allowed to. Use <code>\copy</code> instead.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> COPY vs \copy. data-only dump vs schema dump vs base backup. FDW is a tool name, not a backup strategy.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li>\copy CSV to staging.</li>
+        <li>pg_dump -a for data-only.</li>
+        <li>Do not confuse with physical backup.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td>COPY</td><td>\copy</td></tr>
+          <tr><td>Data-only dump</td><td>Schema-only dump</td></tr>
+          <tr><td>FDW</td><td>Streaming replica</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1.</strong> Why did server COPY fail when \copy worked?</p>
+        <p>Different process, different filesystem view, different privilege model. \copy is the client reading the file.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Export and import CSV via \copy</li>
+        <li>Take a data-only dump of app.users</li>
+        <li>Explain FDW in one sentence</li>
+      </ul>
+
+      <div class="pager">
+        <a href="13-maintenance.html">← Chapter 13</a>
+        <a href="15-replication.html">Chapter 15 →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>
