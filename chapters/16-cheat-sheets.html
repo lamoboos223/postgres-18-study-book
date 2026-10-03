@@ -39,6 +39,11 @@ CREATE SCHEMA app;
 GRANT CONNECT ON DATABASE study_lab TO app_user;
 GRANT USAGE ON SCHEMA app TO app_user;
 GRANT SELECT ON ALL TABLES IN SCHEMA app TO app_user;
+ALTER TABLE app.notes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY notes_own ON app.notes FOR ALL TO app_user
+  USING (owner = current_user) WITH CHECK (owner = current_user);
+-- DROP POLICY notes_own ON app.notes;
+SELECT * FROM pg_policies WHERE tablename = 'notes';
 </code></pre>
 
       <h2>Configuration</h2>

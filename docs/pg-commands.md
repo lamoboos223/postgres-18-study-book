@@ -152,3 +152,36 @@ insert into sensors(id, reading) values (1, 24.2);
 insert into sensors(id, reading) values (2, 29.2);
 \endpipeline
 ```
+
+20- Row Level Security (RLS) policies. GRANT is table-wide; a policy filters rows. Enable RLS first — with no policy a non-owner sees zero rows. `USING` filters existing rows (SELECT/UPDATE/DELETE). `WITH CHECK` guards new/updated rows (INSERT/UPDATE). Table owner and superuser bypass unless `FORCE ROW LEVEL SECURITY`. Test as the app role, not as `postgres`.
+
+```sql
+ALTER TABLE app.notes ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE app.notes FORCE ROW LEVEL SECURITY;
+
+CREATE POLICY notes_own ON app.notes
+  FOR ALL
+  TO app_user
+  USING (owner = current_user)
+  WITH CHECK (owner = current_user);
+
+SELECT policyname, cmd, roles, qual, with_check
+FROM pg_policies
+WHERE tablename = 'notes';
+
+-- DROP POLICY notes_own ON app.notes;
+```
+
+21- Database encryption in community Postgres is column-level via `pgcrypto`, not TDE. Encrypting every column is slow and does not replace GRANT / RLS / disk encryption. One-way (`crypt`) for passwords — you cannot decrypt. Two-way (`pgp_sym_encrypt`) for values you must read back. The passphrase is the secret; anyone with SELECT and the key can decrypt.
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- one-way
+SELECT crypt('lab_only', gen_salt('bf'));
+SELECT crypt('lab_only', pw_hash) = pw_hash AS pw_ok FROM app.secrets;
+
+-- two-way
+SELECT pgp_sym_encrypt('4111111111111111', 'study_lab_key');
+SELECT pgp_sym_decrypt(card, 'study_lab_key') FROM app.secrets;
+```
