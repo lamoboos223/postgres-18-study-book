@@ -35,6 +35,8 @@
 
       <h2>3. Deep explanation</h2>
       <p>SQL Server: login (instance) + user (database). PostgreSQL: one role cluster-wide; you still must grant database <code>CONNECT</code> and object rights. <code>GRANT role_a TO role_b</code> is group membership.</p>
+      <p>EDB module 9: <code>pg_hba</code> methods to name — <code>trust</code>, <code>peer</code>/<code>ident</code>, <code>scram-sha-256</code>, <code>md5</code> (legacy), <code>cert</code>, <code>reject</code>. First matching line wins.</p>
+      <p><strong>Row Level Security:</strong> <code>ALTER TABLE … ENABLE ROW LEVEL SECURITY;</code> then <code>CREATE POLICY …</code>. Superusers and table owners bypass RLS unless <code>FORCE ROW LEVEL SECURITY</code>. Role option <code>BYPASSRLS</code> also skips policies.</p>
       <p>Object owner can do almost anything to that object. Superuser can do almost anything to the cluster.</p>
 
       <h2>4. PostgreSQL 18 example</h2>
@@ -87,7 +89,7 @@ psql -h 127.0.0.1 -U app_user -d study_lab -c "SELECT * FROM audit.audit_logs;"
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Auth ≠ privileges. Schema <code>USAGE</code>. Owner vs GRANT. Superuser is not an application pattern.
+        <strong>🔥 Exam focus.</strong> Auth ≠ privileges. Schema <code>USAGE</code>. <code>pg_hba</code> first match: <code>trust</code> / <code>peer</code> / <code>scram-sha-256</code> / <code>reject</code>. RLS + <code>BYPASSRLS</code> / <code>FORCE ROW LEVEL SECURITY</code>. Superuser is not an application pattern.
       </div>
 
       <h2>10. One-minute revision</h2>

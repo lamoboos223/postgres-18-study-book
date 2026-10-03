@@ -22,7 +22,7 @@
       <ul>
         <li>A <strong>supervisor</strong> <code>postgres</code> process (still often called postmaster).</li>
         <li><strong>Backend</strong> processes — one per client connection.</li>
-        <li><strong>Background processes</strong> — checkpointer, background writer, WAL writer, autovacuum launcher, stats collector / logger, and in PostgreSQL 18 I/O workers when <code>io_method = worker</code>.</li>
+        <li><strong>Background processes</strong> (EDB “utility processes”): checkpointer, background writer, WAL writer, logging collector, autovacuum launcher/workers, archiver, logical replication launcher, and PostgreSQL 18 I/O workers when <code>io_method = worker</code>.</li>
         <li><strong>Shared memory</strong> — especially <code>shared_buffers</code> (cached 8 kB pages).</li>
         <li><strong>WAL</strong> in <code>pg_wal</code> — the durable diary of changes.</li>
         <li><strong>Data files</strong> — heap and index pages; they may be dirty in memory until a checkpoint.</li>
@@ -91,6 +91,10 @@
       </div>
 
       <h2>3. Deep explanation</h2>
+      <h3>EDB course: one port, one page story</h3>
+      <p>One postmaster listens on <strong>exactly one TCP port</strong>. A second cluster on the same host needs another port and another data directory. Their RHEL default is <code>/var/lib/pgsql/18/data</code>; Debian is <code>/var/lib/postgresql/18/main</code>.</p>
+      <p>Relations are file-per-table / file-per-index, split at <strong>1 GB</strong>, plus FSM and visibility-map files. File names are <code>pg_class.relfilenode</code>. A page is typically <strong>8 kB</strong> with a <strong>24-byte</strong> header, then item pointers, free space, tuples.</p>
+      <p>Statement path they want named: <strong>parse → optimize (planner + stats) → execute</strong>.</p>
       <h3>Why shared buffers exist</h3>
       <p>Backends do not read every row from disk on every query. They pin 8 kB pages in <code>shared_buffers</code>. A write first updates the in-memory page and appends WAL. The data file can lag. That is why “the table file looks old” after a commit is normal.</p>
       <h3>Why WAL exists</h3>

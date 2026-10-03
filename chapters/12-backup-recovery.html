@@ -49,6 +49,18 @@
       <p>A dump does not include uncommitted work and is not crash-consistent the way a base backup + WAL is. It is excellent for logical copies and migrations. Physical backup is what you need for PITR and for building standbys (Chapter 15).</p>
       <p>PITR: enable <code>archive_mode</code>, set <code>archive_command</code> (or <code>archive_library</code>), take <code>pg_basebackup</code>, keep WAL segments. Restore files, configure recovery to a timestamp, start. <code>wal_level</code> must be <code>replica</code> or higher (default). Official docs: <code>minimal</code> is not enough for PITR / streaming.</p>
       <p>Formats: <code>pg_dump -Fc</code> custom (pg_restore, parallel). <code>-f file.sql</code> plain (psql).</p>
+      <p>PITR restore (EDB steps, compressed): stop the server, empty PGDATA, copy the base backup in, set <code>restore_command</code>, drop a <code>recovery.signal</code> file in PGDATA, start. The server removes <code>recovery.signal</code> when recovery finishes. Targets: <code>recovery_target_time</code> / <code>xid</code> / <code>name</code>. <code>standby.signal</code> is different — that one means “stay a replica.”</p>
+      <p><strong>Incremental physical backups</strong> (v17+): set <code>summarize_wal = on</code>, take a full <code>pg_basebackup</code> (writes <code>backup_manifest</code>), then <code>pg_basebackup --incremental=…/backup_manifest</code>. Restore: <code>pg_combinebackup</code> full + incrementals into one tree, then start (or PITR). Check a backup with <code>pg_verifybackup</code>. The WAL summarizer writes tiny files under <code>pg_wal/summaries/</code>; <code>pg_walsummary</code> dumps them.</p>
+<pre><code>SHOW summarize_wal;   -- must be on
+sudo -u postgres pg_basebackup -D /var/lib/postgresql/backups/full -Fp -Xs -P
+sudo -u postgres pg_basebackup -D /var/lib/postgresql/backups/incr1 \
+  --incremental=/var/lib/postgresql/backups/full/backup_manifest -Fp -Xs -P
+sudo -u postgres pg_combinebackup \
+  /var/lib/postgresql/backups/full /var/lib/postgresql/backups/incr1 \
+  -o /var/lib/postgresql/backups/combined
+sudo -u postgres pg_verifybackup /var/lib/postgresql/backups/full
+</code></pre>
+      <p>EDB also names <strong>Barman</strong> and <strong>pgBackRest</strong> as production backup tools. Know they exist; this lab stays on <code>pg_basebackup</code>.</p>
 
       <h2>4. PostgreSQL 18 example</h2>
 <pre><code>sudo -u postgres pg_dump -d study_lab -Fc -f /tmp/study_lab.dump
@@ -105,7 +117,7 @@ ls /var/lib/postgresql/wal_archive | head
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Logical vs physical. Dump is not PITR. <code>pg_dumpall</code> for roles. Base backup + WAL archive = PITR. Backup ≠ streaming replica.
+        <strong>🔥 Exam focus.</strong> Logical vs physical. Dump is not PITR. <code>recovery.signal</code> vs <code>standby.signal</code>. Incremental needs <code>summarize_wal</code> + <code>pg_combinebackup</code>. <code>pg_verifybackup</code> checks the manifest. Backup ≠ replica.
       </div>
 
       <h2>10. One-minute revision</h2>
@@ -113,6 +125,8 @@ ls /var/lib/postgresql/wal_archive | head
         <li><code>pg_dump -Fc</code> + <code>pg_restore</code> into <code>study_lab_restore</code>.</li>
         <li><code>pg_basebackup -Xs</code> for a consistent physical copy.</li>
         <li>Archive WAL if you want PITR.</li>
+        <li>Incrementals: <code>summarize_wal</code> → <code>pg_combinebackup</code>.</li>
+        <li><code>recovery.signal</code> recovers; <code>standby.signal</code> stays replica.</li>
       </ul>
 
       <h2>⚠️ Don't confuse these</h2>
@@ -122,6 +136,8 @@ ls /var/lib/postgresql/wal_archive | head
           <tr><td><code>pg_dump</code></td><td><code>pg_basebackup</code></td></tr>
           <tr><td>Backup</td><td>Replication</td></tr>
           <tr><td>PITR</td><td>A single dump file</td></tr>
+          <tr><td><code>recovery.signal</code></td><td><code>standby.signal</code></td></tr>
+          <tr><td>Incremental backup</td><td>A dump taken with <code>-a</code></td></tr>
         </tbody>
       </table>
 
@@ -130,6 +146,10 @@ ls /var/lib/postgresql/wal_archive | head
         <p><strong>Q1.</strong> You have only last night’s <code>pg_dump</code>. Can you restore to 10:17 this morning?</p>
         <p>No. That is a logical snapshot of dump time. PITR needs physical backup + WAL after that backup.</p>
       </div>
+      <div class="q">
+        <p><strong>Q2.</strong> Incremental restore: do you start the incremental directory as PGDATA?</p>
+        <p>No. Combine first: <code>pg_combinebackup</code> full + incrementals, then treat the output as the base. Needs <code>summarize_wal=on</code> when the incrementals were taken.</p>
+      </div>
 
       <h2>✅ Can you do this?</h2>
       <ul class="checklist">
@@ -137,6 +157,7 @@ ls /var/lib/postgresql/wal_archive | head
         <li>Take <code>pg_basebackup</code></li>
         <li>Explain archive_command placeholders <code>%p</code> and <code>%f</code></li>
         <li>Say why backup ≠ replica</li>
+        <li>Name <code>summarize_wal</code>, <code>pg_combinebackup</code>, <code>recovery.signal</code></li>
       </ul>
 
       <div class="pager">

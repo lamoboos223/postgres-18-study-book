@@ -86,6 +86,30 @@
       </ul>
       <p>Do not put application tables in <code>template0</code> or <code>template1</code>.</p>
 
+      <h3>EDB course facts (keep, skip the AI slides)</h3>
+      <p>The student deck opens with EDB Postgres AI marketing. The Essentials exam is <strong>community PostgreSQL</strong>, not Enterprise Postgres / Oracle compatibility. Know that EPAS exists.</p>
+      <table>
+        <thead><tr><th>Limit</th><th>Value (EDB slide)</th></tr></thead>
+        <tbody>
+          <tr><td>Database size</td><td>Unlimited</td></tr>
+          <tr><td>Table size</td><td>32 TB (same per partition)</td></tr>
+          <tr><td>Row size</td><td>1.6 TB</td></tr>
+          <tr><td>Field size</td><td>1 GB</td></tr>
+          <tr><td>Columns per table</td><td>250–1600 (depends on types)</td></tr>
+          <tr><td>Rows / indexes per table</td><td>Unlimited</td></tr>
+        </tbody>
+      </table>
+      <table>
+        <thead><tr><th>Industry word</th><th>Postgres word</th></tr></thead>
+        <tbody>
+          <tr><td>Table / index</td><td>Relation</td></tr>
+          <tr><td>Row</td><td>Tuple</td></tr>
+          <tr><td>Column</td><td>Attribute</td></tr>
+          <tr><td>Block on disk</td><td>Page</td></tr>
+          <tr><td>Block in memory</td><td>Buffer</td></tr>
+        </tbody>
+      </table>
+
       <h3>Why PostgreSQL isolates databases so hard</h3>
       <p>A client connection is always to <strong>exactly one database</strong>. There is no <code>USE otherdb</code> that switches catalogs the way SQL Server does. Cross-database queries are not normal SQL; you need <code>dblink</code>, a foreign data wrapper, or a second connection. That is a feature: catalogs, search_path, and permissions stay scoped.</p>
       <p>Roles (users) are <strong>cluster-wide</strong>. Creating <code>app_user</code> once makes that role visible to every database. Privileges on tables are per-database objects. This split is the #1 SQL Server confusion.</p>

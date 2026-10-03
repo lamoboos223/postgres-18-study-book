@@ -47,6 +47,10 @@
       <p><code>pg_basebackup</code> can stream WAL (<code>-Xs</code>) and can use <code>-R</code> to write <code>postgresql.auto.conf</code> + <code>standby.signal</code> so the copy starts as a standby.</p>
       <p>Lag: <code>sent_lsn</code> vs <code>replay_lsn</code> in <code>pg_stat_replication</code>. Received but not replayed = apply lag (queries, conflicts, IO).</p>
       <p>Hot standby conflicts: VACUUM on primary vs long query on standby. <code>hot_standby_feedback</code> reduces cleanup conflicts and can bloat the primary.</p>
+      <p><strong>Cascading:</strong> a standby can stream to another standby (<code>primary_conninfo</code> points at the upstream replica). Async only. Offloads the primary. Other standby GUCs the deck wants named: <code>primary_slot_name</code>, <code>max_standby_streaming_delay</code>, <code>wal_receiver_create_temp_slot</code>, <code>recovery_min_apply_delay</code> (delayed replica).</p>
+      <p>WAL retention without a slot: <code>wal_keep_size</code>. Cap a slot’s disk use: <code>max_slot_wal_keep_size</code>. Sync needs <code>synchronous_standby_names</code>; if that standby dies, COMMITs wait unless you set <code>synchronous_commit</code> to <code>local</code> or <code>off</code>.</p>
+      <p><strong>Logical replication:</strong> <code>CREATE PUBLICATION … FOR TABLE …</code> on the publisher, <code>CREATE SUBSCRIPTION … CONNECTION '…' PUBLICATION …</code> on the subscriber. Row-level, selected tables, can cross versions. Subscriber tables are read-only in practice. Needs <code>wal_level = logical</code>.</p>
+      <p>HA tool names (skip the sales slides): <strong>repmgr</strong> / <strong>repmgrd</strong>, <strong>EDB Failover Manager (EFM)</strong>, Patroni, HARP, EDB Postgres Distributed. This lab promotes by hand.</p>
 
       <h2>4. PostgreSQL 18 example</h2>
 <pre><code>-- on primary
@@ -124,7 +128,7 @@ sudo -u postgres psql -d study_lab -c "SELECT count(*) FROM app.users;"
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Physical vs logical. Slot vs no slot. Async vs sync. <code>hot_standby</code>. Promote. Backup ≠ replica. <code>pg_basebackup</code> is how you clone a primary for streaming.
+        <strong>🔥 Exam focus.</strong> Physical vs logical (pub/sub). Cascading is async. Slot vs <code>wal_keep_size</code>. <code>standby.signal</code>. Sync can stall COMMITs. Promote is not EFM/repmgr.
       </div>
 
       <h2>10. One-minute revision</h2>
@@ -142,6 +146,8 @@ sudo -u postgres psql -d study_lab -c "SELECT count(*) FROM app.users;"
           <tr><td>Async</td><td>Sync</td></tr>
           <tr><td>Promote</td><td>Automatic failover product</td></tr>
           <tr><td>Received LSN</td><td>Replayed LSN</td></tr>
+          <tr><td>Publication / subscription</td><td>Physical slot + WAL stream</td></tr>
+          <tr><td>Cascade</td><td>Synchronous commit</td></tr>
         </tbody>
       </table>
 
@@ -166,6 +172,7 @@ sudo -u postgres psql -d study_lab -c "SELECT count(*) FROM app.users;"
         <li>Verify <code>pg_stat_replication</code></li>
         <li>Explain slot disk risk</li>
         <li>Explain promote vs auto-failover</li>
+        <li>Name cascading (async) and CREATE PUBLICATION / SUBSCRIPTION</li>
       </ul>
 
       <div class="pager">

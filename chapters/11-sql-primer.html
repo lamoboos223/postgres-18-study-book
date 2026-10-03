@@ -41,6 +41,15 @@
       <p>B-tree is the default index. Use it for equality and ranges. Other types exist (GIN for jsonb, GiST, BRIN) — know they exist for Essentials; do not invent syntax you have not looked up.</p>
       <p><code>EXPLAIN</code> without <code>ANALYZE</code> is an estimate only. With <code>ANALYZE</code> it executes (so a <code>DELETE</code> plan would delete — wrap in a transaction and rollback, or use <code>EXPLAIN</code> on SELECT).</p>
       <p>Transactions: a second session may or may not see your uncommitted rows (it will not, under default isolation). Row-level locks appear on UPDATE/DELETE.</p>
+      <p>EDB classifies SQL into four buckets — name them:</p>
+      <ul>
+        <li><strong>DDL</strong> — <code>CREATE</code> / <code>ALTER</code> / <code>DROP</code> / <code>TRUNCATE</code></li>
+        <li><strong>DML</strong> — <code>INSERT</code> / <code>UPDATE</code> / <code>DELETE</code> / <code>SELECT</code></li>
+        <li><strong>DCL</strong> — <code>GRANT</code> / <code>REVOKE</code></li>
+        <li><strong>TCL</strong> — <code>COMMIT</code> / <code>ROLLBACK</code> / <code>SAVEPOINT</code> / <code>SET TRANSACTION</code></li>
+      </ul>
+      <p>Also name these objects: <strong>domain</strong> = a type plus constraints (<code>CREATE DOMAIN city AS text CHECK (VALUE IN (...))</code>). <strong>Sequence</strong> = <code>nextval</code> / <code>currval</code> (Identity columns wrap this). A <strong>view</strong> is a stored query, not a copy of the rows.</p>
+      <p><strong>Virtual generated columns</strong> (PostgreSQL 18 default): <code>full_name text GENERATED ALWAYS AS (first_name || ' ' || last_name) VIRTUAL</code> — computed at read time, not stored. You can still index them. <strong>Temporal PK:</strong> <code>PRIMARY KEY (room_id, booking_period WITHOUT OVERLAPS)</code> rejects overlapping ranges.</p>
 
       <h2>4. PostgreSQL 18 example</h2>
 <pre><code>CREATE TABLE app.order_items (
@@ -104,7 +113,7 @@ SELECT relname, last_analyze, n_live_tup FROM pg_stat_user_tables;
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Default isolation. WAL on commit. Index types at a name-recognition level. <code>EXPLAIN ANALYZE</code> executes. Transactions are not “just autocommit vs not” — know BEGIN/COMMIT.
+        <strong>🔥 Exam focus.</strong> Default isolation. WAL on commit. DDL / DML / DCL / TCL. Virtual generated vs stored. <code>WITHOUT OVERLAPS</code>. Domain ≠ table. <code>EXPLAIN ANALYZE</code> executes.
       </div>
 
       <h2>10. One-minute revision</h2>
@@ -112,6 +121,7 @@ SELECT relname, last_analyze, n_live_tup FROM pg_stat_user_tables;
         <li><code>order_items</code> and <code>messages</code> exist.</li>
         <li>Indexes + EXPLAIN.</li>
         <li>Open transaction + lock wait demo.</li>
+        <li>DDL / DML / DCL / TCL. Virtual generated. Domain. <code>WITHOUT OVERLAPS</code>.</li>
       </ul>
 
       <h2>⚠️ Don't confuse these</h2>
@@ -121,6 +131,8 @@ SELECT relname, last_analyze, n_live_tup FROM pg_stat_user_tables;
           <tr><td>EXPLAIN</td><td>EXPLAIN ANALYZE</td></tr>
           <tr><td>Index</td><td>Constraint (though UNIQUE uses an index)</td></tr>
           <tr><td>ROLLBACK</td><td>VACUUM</td></tr>
+          <tr><td>VIRTUAL generated</td><td>Stored generated / Identity</td></tr>
+          <tr><td>Domain</td><td>Table</td></tr>
         </tbody>
       </table>
 

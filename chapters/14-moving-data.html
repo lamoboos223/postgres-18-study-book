@@ -35,6 +35,7 @@
       <p>Server <code>COPY FROM '/path'</code> requires the file to be visible to the server OS user and superuser (or a granted <code>COPY</code> privilege / <code>pg_read_server_files</code> in modern versions — do not memorize every grant name; know that server-side COPY is privileged).</p>
       <p><code>\copy</code> streams through the client. That is what you use from a workstation.</p>
       <p>FDW: <code>CREATE EXTENSION postgres_fdw;</code> then a foreign server — query another PostgreSQL as if it were a table. Essentials: “exists, used for moving/querying remote data,” not a full course.</p>
+      <p><strong>COPY FREEZE:</strong> <code>COPY tab FROM 'file' FREEZE;</code> marks new rows frozen during the load so you skip a later freeze vacuum. The table must have been <code>CREATE</code>d or <code>TRUNCATE</code>d in the <em>same</em> transaction. Faster initial load; it does break normal MVCC visibility rules — only for that empty-table case. Other COPY options the deck names: <code>FORMAT</code>, <code>HEADER</code>, <code>DELIMITER</code>, <code>ON_ERROR</code> (stop / ignore), <code>REJECT_LIMIT</code>.</p>
 
       <h2>4. PostgreSQL 18 example</h2>
 <pre><code>\copy app.products TO '/tmp/products.csv' WITH (FORMAT csv, HEADER true);
@@ -73,7 +74,7 @@ wc -l /tmp/users_data.sql
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> COPY vs \copy. data-only dump vs schema dump vs base backup. FDW is a tool name, not a backup strategy.
+        <strong>🔥 Exam focus.</strong> COPY vs \copy. <code>COPY FREEZE</code> only on a table created/truncated in the same transaction. Data-only dump ≠ base backup. FDW is not a replica.
       </div>
 
       <h2>10. One-minute revision</h2>
@@ -81,6 +82,7 @@ wc -l /tmp/users_data.sql
         <li>\copy CSV to staging.</li>
         <li>pg_dump -a for data-only.</li>
         <li>Do not confuse with physical backup.</li>
+        <li><code>COPY FREEZE</code> only on a brand-new or just-truncated table, same transaction.</li>
       </ul>
 
       <h2>⚠️ Don't confuse these</h2>
@@ -90,6 +92,7 @@ wc -l /tmp/users_data.sql
           <tr><td>COPY</td><td>\copy</td></tr>
           <tr><td>Data-only dump</td><td>Schema-only dump</td></tr>
           <tr><td>FDW</td><td>Streaming replica</td></tr>
+          <tr><td><code>COPY FREEZE</code></td><td><code>VACUUM FREEZE</code> on a live table</td></tr>
         </tbody>
       </table>
 

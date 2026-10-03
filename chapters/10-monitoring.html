@@ -37,6 +37,7 @@
       <h2>3. Deep explanation</h2>
       <p><code>pg_stat_activity.query</code> is the current (or last) statement. <code>wait_event</code> tells you if the session is idle, on a lock, or on IO. <code>state = 'idle in transaction'</code> is a classic production leak — it holds snapshots and blocks VACUUM.</p>
       <p>Logging GUCs: <code>logging_collector</code>, <code>log_destination</code>, <code>log_min_duration_statement</code>, <code>log_connections</code>, <code>log_lock_waits</code>. Too much logging can fill disks.</p>
+      <p>EDB’s GUI slide: <strong>pgAdmin 4</strong> is the community admin client (Query Tool, Visual Explain). <strong>Postgres Enterprise Manager (PEM)</strong> is EDB’s paid dashboard — know the name; this book does not install it. The exam facts are the views and logs above.</p>
       <div class="callout pg18">
         <strong>PostgreSQL 18 note.</strong> <code>pg_stat_io</code> is the detailed I/O stats view (expanded over recent majors). Use it with <code>EXPLAIN (ANALYZE, BUFFERS)</code> — Chapter 11. Do not treat unofficial “2–3× AIO” blog numbers as exam facts.
       </div>

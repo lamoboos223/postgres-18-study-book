@@ -37,7 +37,12 @@
       <h2>3. Deep explanation</h2>
       <p>Each database has an OID. Files in <code>base/&lt;oid&gt;</code> are relations (tables, indexes) named by filenode, not by SQL name. That is why you do not back up a table by copying <code>users</code> from the filesystem.</p>
       <p><code>pg_default</code> is the default tablespace (<code>base/</code>). <code>pg_global</code> is cluster-wide catalogs. User tablespaces are directories elsewhere with a symlink in <code>pg_tblspc</code>.</p>
-      <p>A second cluster on the same VM = second <code>initdb</code>, second port, second memory budget. Debian: <code>pg_createcluster 18 lab2 --port 5433</code>.</p>
+      <p>A second cluster on the same VM = second <code>initdb</code>, second port, second memory budget. Debian: <code>pg_createcluster 18 lab2 --port 5433</code>. EDB’s extra cluster example uses <code>initdb -D /edbstore</code> and <code>port = 5434</code>.</p>
+      <p>Know these <code>initdb</code> flags: <code>-D</code> data dir, <code>-E</code> encoding, <code>-U</code> superuser name, <code>-W</code> password prompt, <code>-X</code> WAL directory, <code>--wal-segsize</code>, <code>-k</code> / checksums. If <code>-D</code> is omitted, <code>PGDATA</code> is used.</p>
+      <p><code>pg_ctl</code> (Debian: <code>pg_ctlcluster 18 main …</code>): <code>start</code>, <code>stop</code>, <code>restart</code>, <code>reload</code>, <code>status</code>, <code>promote</code>, <code>init</code>. Stop modes: <strong>smart</strong> (wait for clients), <strong>fast</strong> (default, roll back), <strong>immediate</strong> (crash, recovery on start). Reload is also <code>SELECT pg_reload_conf();</code>.</p>
+<pre><code>sudo -u postgres /usr/lib/postgresql/18/bin/pg_controldata /var/lib/postgresql/18/main | head
+</code></pre>
+      <div class="cmd-note"><code>pg_controldata</code> prints cluster control info (system identifier, latest checkpoint). EDB module 5 exam bait.</div>
       <div class="callout warn">
         <strong>⚠️ Destructive.</strong> <code>pg_dropcluster 18 lab2 --stop</code> deletes that cluster’s data. Never point it at <code>main</code> unless you mean to destroy the book lab.
       </div>

@@ -78,6 +78,24 @@
       <div class="q">
         <p><strong>12.</strong> Which file answers “may this host connect as this role to this database”?</p>
       </div>
+      <div class="q">
+        <p><strong>13.</strong> You have a full <code>pg_basebackup</code> plus two incrementals. What must you run before starting that tree as a cluster?</p>
+      </div>
+      <div class="q">
+        <p><strong>14.</strong> <code>recovery.signal</code> vs <code>standby.signal</code> — one sentence each.</p>
+      </div>
+      <div class="q">
+        <p><strong>15. True / False.</strong> <code>COPY … FREEZE</code> works on any populated table to skip later VACUUM FREEZE.</p>
+      </div>
+      <div class="q">
+        <p><strong>16.</strong> A virtual generated column is stored on disk. True / False, and why.</p>
+      </div>
+      <div class="q">
+        <p><strong>17.</strong> Name the four SQL buckets EDB uses (DDL / DML / DCL / TCL) and give one verb each.</p>
+      </div>
+      <div class="q">
+        <p><strong>18.</strong> Cascading replication is synchronous by default. True / False.</p>
+      </div>
 
       <h2>Answer key</h2>
       <div class="q">
@@ -93,6 +111,12 @@
         <p><strong>10</strong> Standby apply (queries, conflicts, IO). Compare LSN columns in <code>pg_stat_replication</code>. Check hot standby conflicts / <code>max_standby_streaming_delay</code>.</p>
         <p><strong>11 False.</strong> <code>\c</code> opens a new connection to another database.</p>
         <p><strong>12</strong> <code>pg_hba.conf</code> (then role/password, then GRANT).</p>
+        <p><strong>13</strong> <code>pg_combinebackup</code> (full + incrementals in order) into one directory. <code>summarize_wal</code> was required when the incrementals were taken. <code>pg_verifybackup</code> is optional but exam-friendly.</p>
+        <p><strong>14</strong> <code>recovery.signal</code> = recover, then become a primary (file is removed). <code>standby.signal</code> = stay a replica.</p>
+        <p><strong>15 False.</strong> The table must be created or truncated in the same transaction. FREEZE on a used table is rejected.</p>
+        <p><strong>16 False.</strong> <code>VIRTUAL</code> is computed at read time. (You can still index it.)</p>
+        <p><strong>17</strong> DDL: CREATE. DML: INSERT. DCL: GRANT. TCL: COMMIT (or ROLLBACK / SAVEPOINT).</p>
+        <p><strong>18 False.</strong> Cascade is async only. The mid-tier standby streams to others to offload the primary.</p>
       </div>
 
       <div class="pager">

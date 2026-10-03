@@ -54,6 +54,7 @@
       <p>Password method for modern PostgreSQL is <code>scram-sha-256</code>, not <code>md5</code> if you can avoid it.</p>
       <p><code>ALTER SYSTEM SET ...</code> writes <code>postgresql.auto.conf</code> and still needs reload/restart per parameter. Prefer editing the Debian file <em>or</em> ALTER SYSTEM — not both fighting each other blindly.</p>
       <p><code>reload</code> = SIGHUP: existing sessions keep running; they pick up reloadable GUCs on next check. <code>restart</code> = stop + start: connections drop.</p>
+      <p><code>pg_settings.context</code> values to name: <code>internal</code> (compile-time), <code>postmaster</code> (restart), <code>sighup</code> (reload), <code>superuser</code> / <code>user</code> (session). <code>include</code> / <code>include_dir</code> in <code>postgresql.conf</code> pull extra files — Debian already does this with <code>conf.d</code>.</p>
 
       <h2>4. PostgreSQL 18 example</h2>
 <pre><code>sudo -u postgres psql -d postgres -c "SHOW config_file;"

@@ -20,6 +20,7 @@
       <h2>1. What you need to know</h2>
       <p>Debian’s own <code>apt install postgresql</code> tracks Debian’s chosen major. This book needs <strong>PostgreSQL 18</strong>. Official postgresql.org Debian page: add the PGDG repo, then <code>apt install postgresql-18</code>.</p>
       <p>The Debian packages run <code>initdb</code> for you and create cluster <code>18/main</code>, managed by systemd and <code>pg_ctlcluster</code>.</p>
+      <p>EDB’s student labs are <strong>Rocky Linux + DNF</strong> (<code>postgresql18-server</code>, <code>postgresql-18-setup initdb</code>, data in <code>/var/lib/pgsql/18/data</code>). Same PostgreSQL 18; different packaging paths. Stay on Debian for this book.</p>
 
       <h2>2. Mental model</h2>
       <div class="diag">
@@ -52,6 +53,14 @@
       <div class="callout remember">
         <strong>Remember.</strong> Pin the major: install <code>postgresql-18</code>, not the floating <code>postgresql</code> metapackage, or a new major can surprise you later.
       </div>
+      <p>EDB stresses environment variables after install. On Debian they are optional because <code>pg_ctlcluster</code> already knows the paths; still know them for the exam:</p>
+<pre><code>export PATH=/usr/lib/postgresql/18/bin:$PATH
+export PGDATA=/var/lib/postgresql/18/main
+export PGPORT=5432
+export PGUSER=postgres
+export PGDATABASE=postgres
+</code></pre>
+      <div class="cmd-note">Do <em>not</em> put <code>PGPASSWORD</code> in <code>.bash_profile</code>. The course mentions it; that is a secret on disk.</div>
 
       <h2>4. PostgreSQL 18 example</h2>
 <pre><code>sudo apt install -y postgresql-common ca-certificates

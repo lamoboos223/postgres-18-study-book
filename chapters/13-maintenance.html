@@ -34,6 +34,8 @@
       <h2>3. Deep explanation</h2>
       <p>Autovacuum launcher starts workers per table based on dead-tuple scale factors. If it cannot keep up (long transactions, too few workers, throttling), tables bloat. Wraparound: if <code>relfrozenxid</code> gets too old, PostgreSQL will eventually refuse writes — freeze vacuum is mandatory, not optional hygiene.</p>
       <p>SQL Server has no VACUUM because it does not keep heap versions the same way. Do not look for a SQL Server twin.</p>
+      <p><code>vacuumdb</code> is the shell wrapper — <code>vacuumdb --all</code> hits every database. Also know <code>CLUSTER</code> (rewrite a table in index order; exclusive lock). Autovacuum needs <code>track_counts = on</code>. Temp tables are never autovacuumed.</p>
+      <p>v17+ exam bait: vacuum is no longer capped at 1 GB of <code>maintenance_work_mem</code>; it uses an adaptive radix tree, writes less WAL (freeze + prune can share a record), and you can cap its buffer use with <code>vacuum_buffer_usage_limit</code> / <code>VACUUM (BUFFER_USAGE_LIMIT …)</code> / <code>vacuumdb --buffer-usage-limit</code>.</p>
 
       <h2>4. PostgreSQL 18 example</h2>
 <pre><code>VACUUM (VERBOSE) app.orders;
@@ -81,7 +83,7 @@ SELECT relname, n_dead_tup, vacuum_count, autovacuum_count FROM pg_stat_user_tab
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> VACUUM vs VACUUM FULL vs ANALYZE vs REINDEX. Autovacuum exists because humans forget. Wraparound is a real outage class.
+        <strong>🔥 Exam focus.</strong> VACUUM vs VACUUM FULL vs ANALYZE vs REINDEX vs <code>vacuumdb</code>. Wraparound: vacuum every ~2 billion xids. <code>vacuum_freeze_min_age</code> / <code>vacuum_freeze_table_age</code>. v17+ dropped the 1 GB vacuum mem cap.
       </div>
       <div class="callout remember">
         <strong>Remember.</strong> VACUUM = reclaim visibility leftovers for normal operation. VACUUM FULL = rewrite.
@@ -101,6 +103,8 @@ SELECT relname, n_dead_tup, vacuum_count, autovacuum_count FROM pg_stat_user_tab
           <tr><td>VACUUM</td><td>VACUUM FULL</td></tr>
           <tr><td>DELETE</td><td>TRUNCATE (TRUNCATE is DDL-like; rewrites/empties)</td></tr>
           <tr><td>REINDEX</td><td>VACUUM</td></tr>
+          <tr><td><code>vacuumdb</code></td><td>SQL <code>VACUUM</code> (same job, all-DB wrapper)</td></tr>
+          <tr><td><code>CLUSTER</code></td><td><code>VACUUM FULL</code> (both rewrite; CLUSTER follows an index)</td></tr>
         </tbody>
       </table>
 

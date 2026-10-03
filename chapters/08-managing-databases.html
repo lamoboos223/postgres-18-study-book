@@ -32,6 +32,9 @@
 
       <h2>3. Deep explanation</h2>
       <p><code>CREATE DATABASE newdb TEMPLATE template0</code> is the clean copy when <code>template1</code> has leftover objects. You cannot drop a database you are connected to. Encoding/locale are fixed at create time (from template / <code>initdb</code>).</p>
+      <p>EDB module 8 also drills <strong>tablespaces</strong> and <strong>predefined roles</strong>. <code>CREATE TABLESPACE fast_tab LOCATION '/newtab1';</code> — directory must exist and be owned by the postgres OS user. Use <code>TABLESPACE</code> on CREATE TABLE/INDEX/DATABASE. <code>pg_default</code> / <code>pg_global</code> are built-in. You cannot <code>DROP TABLESPACE</code> unless it is empty, and not inside a transaction. <code>default_tablespace</code> and <code>temp_tablespaces</code> are GUCs.</p>
+      <p>Predefined roles (grant these instead of superuser): <code>pg_read_all_data</code>, <code>pg_write_all_data</code>, <code>pg_monitor</code>, <code>pg_read_all_settings</code>, <code>pg_read_all_stats</code>, <code>pg_signal_backend</code>, <code>pg_checkpoint</code>, <code>pg_maintain</code>, <code>pg_read_server_files</code> / <code>pg_write_server_files</code>. Role names must not start with <code>pg_</code> (reserved).</p>
+      <p><code>createuser</code> is the shell wrapper for <code>CREATE ROLE … LOGIN</code>. <code>CREATE USER</code> = <code>CREATE ROLE</code> with <code>LOGIN</code>.</p>
       <p>Constraints live in the table: <code>PRIMARY KEY</code>, <code>FOREIGN KEY</code>, <code>CHECK</code>, <code>UNIQUE</code>, <code>NOT NULL</code>.</p>
 
       <h2>4. PostgreSQL 18 example</h2>
@@ -108,7 +111,7 @@ SELECT nspname FROM pg_namespace WHERE nspname IN ('app','ops','audit');
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Database vs schema vs table. <code>search_path</code>. <code>CREATE DATABASE ... TEMPLATE</code>. You cannot drop the database you are in.
+        <strong>🔥 Exam focus.</strong> Database vs schema vs table. <code>search_path</code>. <code>CREATE DATABASE ... TEMPLATE</code>. Tablespace dir must exist and be empty to drop. Predefined <code>pg_*</code> roles instead of superuser. You cannot drop the database you are in.
       </div>
 
       <h2>10. One-minute revision</h2>
