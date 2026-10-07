@@ -19,8 +19,9 @@
     ["13-maintenance.html", "13 Maintenance"],
     ["14-moving-data.html", "14 Moving data"],
     ["15-replication.html", "15 Replication / HA"],
-    ["16-cheat-sheets.html", "16 Cheat sheets"],
-    ["17-mock-exam.html", "17 Mock exam"]
+    ["16-multi-writer.html", "16 Multi-writer"],
+    ["17-cheat-sheets.html", "17 Cheat sheets"],
+    ["18-mock-exam.html", "18 Mock exam"]
   ];
 
   var html = '<a class="brand" href="' + home + '">PostgreSQL 18 Study Book</a>' +

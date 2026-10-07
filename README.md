@@ -25,4 +25,4 @@ Database `study_lab`. Roles `postgres`, `lab_admin`, `app_user`, `replicator`.
 
 ## Chapters
 
-00 Front matter through 15 Replication, plus cheat sheets and a mock exam.
+00 Front matter through 15 Replication (active-passive), 16 multi-writer / active-active (conceptual), plus cheat sheets and a mock exam.

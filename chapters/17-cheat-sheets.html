@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>16 Cheat sheets — PostgreSQL 18 Study Book</title>
+  <title>17 Cheat sheets — PostgreSQL 18 Study Book</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
@@ -103,6 +103,7 @@ sudo pg_ctlcluster 18 main promote
 -- logical (needs wal_level=logical)
 CREATE PUBLICATION lab_pub FOR TABLE app.users;
 CREATE SUBSCRIPTION lab_sub CONNECTION 'host=… dbname=study_lab user=…' PUBLICATION lab_pub;
+-- one-way logical, not master-master. Do not dual-subscribe the Ch 15 standby.
 </code></pre>
 
       <h2>Important views</h2>
@@ -130,14 +131,15 @@ CREATE SUBSCRIPTION lab_sub CONNECTION 'host=… dbname=study_lab user=…' PUBL
         <li>pg_hba first match; reload vs restart</li>
         <li>pg_dump vs pg_basebackup; backup ≠ replica; <code>recovery.signal</code> vs <code>standby.signal</code></li>
         <li>Incremental: <code>summarize_wal</code> + <code>pg_combinebackup</code> + <code>pg_verifybackup</code></li>
-        <li>Physical streaming, cascading, slots vs <code>wal_keep_size</code>, pub/sub, promote</li>
+        <li>Physical streaming = active-passive (one writer). Not master-master. Cascading, slots vs <code>wal_keep_size</code>, pub/sub, promote</li>
+        <li>Multi-writer / PGD is a product, not <code>hot_standby</code>. Bidirectional logical is not this lab.</li>
         <li><code>COPY FREEZE</code>; virtual generated columns; RLS</li>
         <li>PG 18: <code>io_method</code> is not “skip WAL”</li>
       </ul>
 
       <div class="pager">
-        <a href="15-replication.html">← Chapter 15</a>
-        <a href="17-mock-exam.html">Mock exam →</a>
+        <a href="16-multi-writer.html">← Chapter 16</a>
+        <a href="18-mock-exam.html">Mock exam →</a>
       </div>
     </main>
   </div>

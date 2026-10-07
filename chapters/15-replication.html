@@ -15,19 +15,21 @@
     <main class="page">
       <p class="kicker">Chapter 15 · EDB: Replication and High Availability Tools</p>
       <h1>Streaming replication from pg-primary to pg-standby</h1>
-      <p class="lede">Now the second VM earns its keep. Physical streaming: WAL over the network, replay on the standby, optional sync, promote in the lab only.</p>
+      <p class="lede">Now the second VM earns its keep. This lab is <strong>active-passive</strong>: one writer (<code>pg-primary</code>) and a replica (<code>pg-standby</code>). Physical streaming: WAL over the network, replay on the standby, optional sync, promote in the lab only. It is <em>not</em> active-active / multi-writer.</p>
 
       <h2>1. What you need to know</h2>
-      <p>Physical replication copies the cluster (all databases). Logical replication copies selected changes as rows (Advanced-level depth). Essentials: streaming physical + why slots exist.</p>
+      <p>Physical streaming in PostgreSQL is <strong>one primary, one or more standbys</strong> — the old “master-slave” shape. Postgres docs say <strong>primary / standby</strong>. Writes land on the primary only. The standby is in recovery: it replays WAL. With <code>hot_standby = on</code> (default) it can serve <strong>reads</strong>. That is <strong>active-passive</strong>, not two writers.</p>
+      <p>Physical replication copies the cluster (all databases). Logical replication copies selected changes as rows (Advanced-level depth). Essentials: streaming physical + why slots exist. Logical pub/sub is still not multi-master: the subscriber tables are treated as read-only. True multi-writer (active-active) is a different product — EDB Postgres Distributed / BDR — not this chapter.</p>
       <p>Official defaults you should remember: <code>wal_level = replica</code>, <code>max_wal_senders = 10</code>, <code>hot_standby = on</code>. Old GUC names <code>archive</code> / <code>hot_standby</code> as wal_level values map to <code>replica</code>.</p>
 
       <h2>2. Mental model</h2>
       <div class="diag">
-        <div class="row"><div class="box blue">pg-primary .10<small>writes + WAL</small></div></div>
+        <div class="row"><div class="box blue">pg-primary .10<small>active · the only writer</small></div></div>
         <div class="arrow">▼ walsender + slot</div>
         <div class="row"><div class="box amber">Network 192.168.56.0/24</div></div>
         <div class="arrow">▼ walreceiver</div>
-        <div class="row"><div class="box green">pg-standby .11<small>replay · hot standby reads</small></div></div>
+        <div class="row"><div class="box green">pg-standby .11<small>passive · replay · optional reads</small></div></div>
+        <div class="note">Active-passive. Two writers at once = split-brain, not HA.</div>
       </div>
       <div class="diag">
         <div class="row">
@@ -50,7 +52,7 @@
       <p><strong>Cascading:</strong> a standby can stream to another standby (<code>primary_conninfo</code> points at the upstream replica). Async only. Offloads the primary. Other standby GUCs the deck wants named: <code>primary_slot_name</code>, <code>max_standby_streaming_delay</code>, <code>wal_receiver_create_temp_slot</code>, <code>recovery_min_apply_delay</code> (delayed replica).</p>
       <p>WAL retention without a slot: <code>wal_keep_size</code>. Cap a slot’s disk use: <code>max_slot_wal_keep_size</code>. Sync needs <code>synchronous_standby_names</code>; if that standby dies, COMMITs wait unless you set <code>synchronous_commit</code> to <code>local</code> or <code>off</code>.</p>
       <p><strong>Logical replication:</strong> <code>CREATE PUBLICATION … FOR TABLE …</code> on the publisher, <code>CREATE SUBSCRIPTION … CONNECTION '…' PUBLICATION …</code> on the subscriber. Row-level, selected tables, can cross versions. Subscriber tables are read-only in practice. Needs <code>wal_level = logical</code>.</p>
-      <p>HA tool names (skip the sales slides): <strong>repmgr</strong> / <strong>repmgrd</strong>, <strong>EDB Failover Manager (EFM)</strong>, Patroni, HARP, EDB Postgres Distributed. This lab promotes by hand.</p>
+      <p>HA tool names (skip the sales slides): <strong>repmgr</strong> / <strong>repmgrd</strong>, <strong>EDB Failover Manager (EFM)</strong>, Patroni, HARP. Those still fail over <em>one</em> writer. <strong>EDB Postgres Distributed</strong> is the multi-writer / active-active story — Chapter 16. This lab promotes by hand.</p>
 
       <h2>4. PostgreSQL 18 example</h2>
 <pre><code>-- on primary
@@ -128,14 +130,14 @@ sudo -u postgres psql -d study_lab -c "SELECT count(*) FROM app.users;"
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Physical vs logical (pub/sub). Cascading is async. Slot vs <code>wal_keep_size</code>. <code>standby.signal</code>. Sync can stall COMMITs. Promote is not EFM/repmgr.
+        <strong>🔥 Exam focus.</strong> Streaming = primary/standby = active-passive = one writer. Not master-master. Physical vs logical (pub/sub). Cascading is async. Slot vs <code>wal_keep_size</code>. <code>standby.signal</code>. Sync can stall COMMITs. Promote is not EFM/repmgr.
       </div>
 
       <h2>10. One-minute revision</h2>
       <ul>
-        <li>Primary ships WAL; standby replays.</li>
+        <li>Active-passive: primary writes, standby replays (and may read).</li>
         <li>Slot protects WAL — and can fill disks.</li>
-        <li>Promote is manual in this book.</li>
+        <li>Promote is manual in this book. Two writers = split-brain.</li>
       </ul>
 
       <h2>⚠️ Don't confuse these</h2>
@@ -148,6 +150,8 @@ sudo -u postgres psql -d study_lab -c "SELECT count(*) FROM app.users;"
           <tr><td>Received LSN</td><td>Replayed LSN</td></tr>
           <tr><td>Publication / subscription</td><td>Physical slot + WAL stream</td></tr>
           <tr><td>Cascade</td><td>Synchronous commit</td></tr>
+          <tr><td>Active-passive (this lab)</td><td>Active-active / multi-writer</td></tr>
+          <tr><td>Primary / standby</td><td>Master-master</td></tr>
         </tbody>
       </table>
 
@@ -164,6 +168,10 @@ sudo -u postgres psql -d study_lab -c "SELECT count(*) FROM app.users;"
         <p><strong>Q3. True / False.</strong> <code>hot_standby=on</code> (default) lets you run read-only SQL on a standby in recovery.</p>
         <p><strong>True.</strong> It is a restart-level parameter and only matters during recovery/standby mode.</p>
       </div>
+      <div class="q">
+        <p><strong>Q4. True / False.</strong> This chapter’s streaming replica is active-active (two writers).</p>
+        <p><strong>False.</strong> One primary writes. The standby is passive (recovery; optional reads). Two writers is split-brain, or a different product (EDB Postgres Distributed), not vanilla streaming.</p>
+      </div>
 
       <h2>✅ Can you do this?</h2>
       <ul class="checklist">
@@ -173,11 +181,12 @@ sudo -u postgres psql -d study_lab -c "SELECT count(*) FROM app.users;"
         <li>Explain slot disk risk</li>
         <li>Explain promote vs auto-failover</li>
         <li>Name cascading (async) and CREATE PUBLICATION / SUBSCRIPTION</li>
+        <li>Say this lab is active-passive, not multi-writer</li>
       </ul>
 
       <div class="pager">
         <a href="14-moving-data.html">← Chapter 14</a>
-        <a href="16-cheat-sheets.html">Cheat sheets →</a>
+        <a href="16-multi-writer.html">Chapter 16 →</a>
       </div>
     </main>
   </div>

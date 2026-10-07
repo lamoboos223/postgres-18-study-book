@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>16 Multi-writer — PostgreSQL 18 Study Book</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../assets/css/book.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" data-nav></aside>
+    <main class="page">
+      <p class="kicker">Chapter 16 · Beyond Essentials · Active-active</p>
+      <h1>Master-master is not streaming replication</h1>
+      <p class="lede">Chapter 15 is <strong>active-passive</strong>: one writer, one replica. People still say “master-master” when they mean <strong>two writers</strong> (active-active). Vanilla PostgreSQL 18 cannot do that with physical streaming. This chapter is vocabulary and why — no extra VM, do not wire a second writer into <code>study_lab</code>.</p>
+
+      <h2>1. What you need to know</h2>
+      <p>Physical streaming copies the whole cluster by shipping WAL. WAL is a <em>single</em> timeline from <em>one</em> primary. A standby in recovery cannot accept ordinary writes. Promote it and the old primary must stop, or you get <strong>split-brain</strong> (two timelines, two copies of the truth).</p>
+      <p>Active-active means two (or more) nodes accept writes and somehow merge. That is a different problem: conflict detection, unique keys, sequences, DDL, and “which UPDATE won.” It is not <code>pg_basebackup -R</code>.</p>
+      <p>Essentials exam: streaming = one primary. Name the multi-writer product; do not claim you built it.</p>
+
+      <h2>2. Mental model</h2>
+      <div class="diag">
+        <div class="row"><div class="box blue wide">Chapter 15 · active-passive</div></div>
+        <div class="row">
+          <div class="box teal">pg-primary<small>writes</small></div>
+          <div class="box amber">WAL →</div>
+          <div class="box green">pg-standby<small>replay · optional reads</small></div>
+        </div>
+        <div class="note">One writer. Promote = switch who that writer is.</div>
+      </div>
+      <div class="diag">
+        <div class="row"><div class="box red wide">Active-active · two writers</div></div>
+        <div class="row">
+          <div class="box pink">Node A<small>writes</small></div>
+          <div class="box slate">↔ merge / conflicts</div>
+          <div class="box purple">Node B<small>writes</small></div>
+        </div>
+        <div class="note">Not WAL replay. Needs logical replication plus conflict rules, or a product (PGD).</div>
+      </div>
+
+      <h2>3. Deep explanation</h2>
+      <h3>Why physical streaming cannot be master-master</h3>
+      <p>Each cluster has one control file, one WAL timeline, one set of XIDs. A replica applies someone else’s WAL. If both nodes generate WAL, there is no built-in merge. That is why the docs say primary / standby, not “two masters.”</p>
+      <h3>What people actually mean</h3>
+      <table>
+        <thead><tr><th>Phrase</th><th>Usually means</th><th>Postgres reality</th></tr></thead>
+        <tbody>
+          <tr><td>Master-slave / primary-standby</td><td>One writer, replicas</td><td>Chapter 15. Active-passive.</td></tr>
+          <tr><td>Master-master / multi-writer</td><td>Two writers, same data</td><td>Not community streaming. PGD / BDR / Citus (different shapes) / app-level sharding.</td></tr>
+          <tr><td>Logical pub/sub both ways</td><td>Two publications, two subscriptions</td><td>Fragile DIY. Loops, unique-key clashes, sequences collide. Subscriber tables are meant to be treated as read-only.</td></tr>
+          <tr><td>Failover HA (Patroni, EFM, repmgr)</td><td>Keep <em>one</em> writer alive</td><td>Still active-passive. Faster promote, not two writers.</td></tr>
+        </tbody>
+      </table>
+      <h3>Why two writers hurt</h3>
+      <ul>
+        <li><strong>Identity</strong> — two nodes both <code>INSERT</code> into an <code>IDENTITY</code> / sequence: same ids, unique violations, or silent duplicates if you “fixed” sequences badly.</li>
+        <li><strong>Same row</strong> — A updates <code>price = 10</code>, B updates <code>price = 12</code> before they see each other. Last-apply-wins is a choice, not physics.</li>
+        <li><strong>DDL</strong> — <code>ALTER TABLE</code> on one node while the other writes. Logical apply breaks.</li>
+        <li><strong>Loops</strong> — A replicates to B, B replicates the same change back to A unless origin filtering exists.</li>
+      </ul>
+      <h3>EDB Postgres Distributed (PGD, formerly BDR)</h3>
+      <p>This is the name the Essentials deck waves at. Multi-node, write on more than one node, conflict handling, often used for geo / always-on. It is <strong>not</strong> community <code>CREATE SUBSCRIPTION</code>. It is not this lab. HARP sits in front of a PGD/Patroni-style cluster as a routing layer — still not “turn on master-master in <code>postgresql.conf</code>.”</p>
+      <h3>Bidirectional logical replication (know, do not run here)</h3>
+      <p>Community Postgres can publish and subscribe. Two nodes each <code>CREATE PUBLICATION</code> and <code>CREATE SUBSCRIPTION</code> toward the other. That is the closest built-in sketch of master-master. It is not a supported HA pattern for <code>study_lab</code>. If you ever see it in the wild, the minimum extras are: no overlapping sequence ranges, replica identity on every table, and <code>origin</code> filtering so a change does not bounce forever. Still worse than a real multi-writer product for the same row updated on both sides.</p>
+<pre><code>-- shape only — do not run against the Chapter 15 standby
+-- Node A
+CREATE PUBLICATION pub_a FOR TABLE app.users;
+CREATE SUBSCRIPTION sub_a CONNECTION 'host=node_b dbname=study_lab' PUBLICATION pub_b;
+
+-- Node B
+CREATE PUBLICATION pub_b FOR TABLE app.users;
+CREATE SUBSCRIPTION sub_b CONNECTION 'host=node_a dbname=study_lab' PUBLICATION pub_a;
+</code></pre>
+      <div class="cmd-note">Needs <code>wal_level = logical</code> on both. Do not point this at <code>pg-standby</code> while it is a physical replica — that node is in recovery and cannot be a logical publisher of local writes.</div>
+      <div class="callout warn">
+        <strong>⚠️ Do not “try it” on the book VMs.</strong> <code>pg-standby</code> is a physical replica. Dual publication would fight recovery, slots, and the promote drill. Leave Chapter 15 intact.
+      </div>
+
+      <h2>4. PostgreSQL 18 example</h2>
+      <p>Prove the standby is still not a writer (from Chapter 15):</p>
+<pre><code># on pg-standby
+sudo -u postgres psql -d postgres -c "SELECT pg_is_in_recovery();"
+# true
+
+sudo -u postgres psql -d study_lab -c "INSERT INTO app.users (email) VALUES ('should-fail@example.com');"
+# expected: cannot execute INSERT in a read-only transaction
+</code></pre>
+      <div class="cmd-note">That error is the whole chapter. Reads may work. Writes do not until you promote — and then the old primary must be fenced.</div>
+
+      <h2>5. Production perspective</h2>
+      <div class="callout prod">
+        <strong>🏭 Production note.</strong> Most shops want active-passive plus backups. Multi-writer is for write locality or “no downtime even for writes on a region outage.” It costs conflict design, operational complexity, and usually a vendor stack. Do not buy it to paper over a missing PITR or a forgotten replication slot.
+      </div>
+
+      <h2>6. Hands-on lab</h2>
+      <p>No new software. Confirm Chapter 15 is still one writer:</p>
+<pre><code># pg-primary — this should succeed
+sudo -u postgres psql -d study_lab -c "INSERT INTO app.users (email) VALUES ('writer-check@example.com');"
+
+# pg-standby — this should fail
+sudo -u postgres psql -d study_lab -c "INSERT INTO app.users (email) VALUES ('not-a-writer@example.com');"
+</code></pre>
+      <p>Optional cleanup on primary:</p>
+<pre><code>sudo -u postgres psql -d study_lab -c "DELETE FROM app.users WHERE email = 'writer-check@example.com';"
+</code></pre>
+
+      <h2>7. Lab verification</h2>
+<pre><code># primary
+sudo -u postgres psql -d postgres -c "SELECT pg_is_in_recovery();"
+# false
+
+# standby
+sudo -u postgres psql -d postgres -c "SELECT pg_is_in_recovery();"
+# true
+</code></pre>
+
+      <h2>8. Troubleshooting</h2>
+      <h3>Symptom</h3>
+      <p>Someone enabled writes on the standby “to make it active-active.”</p>
+      <h3>Diagnosis</h3>
+      <p>If they promoted without fencing the old primary, you have two writers and diverging data. Restore from backup or pick one timeline. You cannot merge two physical clusters.</p>
+      <h3>Symptom</h3>
+      <p>Bidirectional logical replication duplicates rows or unique_violation storms.</p>
+      <h3>Diagnosis</h3>
+      <p>No origin filter (loop), shared sequences, or both sides updating the same PK. This is why the book does not lab it.</p>
+
+      <h2>9. Exam focus</h2>
+      <div class="callout exam">
+        <strong>🔥 Exam focus.</strong> Streaming = one primary = active-passive. Promote switches the writer; it does not create two. Logical pub/sub is not multi-master HA. EDB Postgres Distributed / BDR is the named multi-writer product. Patroni / EFM / repmgr still keep a single writer.
+      </div>
+
+      <h2>10. One-minute revision</h2>
+      <ul>
+        <li>Ch 15: WAL from one primary. Standby is read-only in recovery.</li>
+        <li>Two writers need conflict rules. Community Postgres does not ship that as streaming.</li>
+        <li>PGD = product name. Do not run dual SUBSCRIPTION on these VMs.</li>
+      </ul>
+
+      <h2>⚠️ Don't confuse these</h2>
+      <table>
+        <thead><tr><th>This</th><th>Is not that</th></tr></thead>
+        <tbody>
+          <tr><td>Active-passive (Ch 15)</td><td>Active-active / master-master</td></tr>
+          <tr><td>Promote</td><td>A second writer while the old primary lives</td></tr>
+          <tr><td>Logical pub/sub</td><td>Physical WAL streaming</td></tr>
+          <tr><td>Bidirectional logical</td><td>A supported HA topology for this book</td></tr>
+          <tr><td>PGD / BDR</td><td><code>hot_standby = on</code></td></tr>
+          <tr><td>Patroni / EFM / repmgr</td><td>Multi-writer</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Review questions</h2>
+      <div class="q">
+        <p><strong>Q1. True / False.</strong> Set <code>hot_standby = on</code> on both nodes and you have master-master.</p>
+        <p><strong>False.</strong> <code>hot_standby</code> allows <em>reads</em> on a replica in recovery. Writes still belong to one primary.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q2.</strong> You promote <code>pg-standby</code> and forget to stop <code>pg-primary</code>. What is that called?</p>
+        <p>Split-brain: two writers, two WAL timelines. Not active-active HA.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q3.</strong> Which built-in feature is the closest sketch of two writers, and why is it still not this lab?</p>
+        <p>Two-way logical publication/subscription. Conflicts, sequence clashes, apply loops. The Chapter 15 standby is a physical replica and cannot publish local writes.</p>
+      </div>
+      <div class="q">
+        <p><strong>Q4.</strong> Name the EDB product for multi-writer Postgres.</p>
+        <p>EDB Postgres Distributed (PGD), formerly BDR.</p>
+      </div>
+
+      <h2>✅ Can you do this?</h2>
+      <ul class="checklist">
+        <li>Draw active-passive vs two writers</li>
+        <li>Explain why WAL replay cannot merge two primaries</li>
+        <li>Show INSERT fails on the standby</li>
+        <li>Name PGD vs Patroni vs logical pub/sub</li>
+        <li>Refuse to dual-subscribe the book VMs</li>
+      </ul>
+
+      <div class="pager">
+        <a href="15-replication.html">← Chapter 15</a>
+        <a href="17-cheat-sheets.html">Cheat sheets →</a>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/js/book.js"></script>
+</body>
+</html>

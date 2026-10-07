@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>17 Mock exam — PostgreSQL 18 Study Book</title>
+  <title>18 Mock exam — PostgreSQL 18 Study Book</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Sora:wght@600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
@@ -96,6 +96,12 @@
       <div class="q">
         <p><strong>18.</strong> Cascading replication is synchronous by default. True / False.</p>
       </div>
+      <div class="q">
+        <p><strong>19. True / False.</strong> Physical streaming with <code>hot_standby=on</code> on both nodes is active-active (two writers).</p>
+      </div>
+      <div class="q">
+        <p><strong>20.</strong> Name the EDB product for multi-writer Postgres, and name one HA tool that still keeps a single writer.</p>
+      </div>
 
       <h2>Answer key</h2>
       <div class="q">
@@ -117,10 +123,12 @@
         <p><strong>16 False.</strong> <code>VIRTUAL</code> is computed at read time. (You can still index it.)</p>
         <p><strong>17</strong> DDL: CREATE. DML: INSERT. DCL: GRANT. TCL: COMMIT (or ROLLBACK / SAVEPOINT).</p>
         <p><strong>18 False.</strong> Cascade is async only. The mid-tier standby streams to others to offload the primary.</p>
+        <p><strong>19 False.</strong> <code>hot_standby</code> is reads on a replica in recovery. One primary still writes. Two writers on streaming is split-brain, not HA.</p>
+        <p><strong>20</strong> EDB Postgres Distributed (PGD / BDR). Patroni, EFM, or repmgr still fail over <em>one</em> writer.</p>
       </div>
 
       <div class="pager">
-        <a href="16-cheat-sheets.html">← Cheat sheets</a>
+        <a href="17-cheat-sheets.html">← Cheat sheets</a>
         <a href="../index.html">Home</a>
       </div>
     </main>
