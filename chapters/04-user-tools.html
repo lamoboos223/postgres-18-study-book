@@ -111,7 +111,7 @@ sudo -u postgres psql -d postgres -c '\conninfo'
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> <code>\c</code> reconnects. <code>\d</code> describes objects. Role vs login: in PostgreSQL a role with <code>LOGIN</code> is what people call a user. <code>psql</code> is not the server.
+        <strong>🔥 Exam focus.</strong> <code>\c</code> reconnects. <code>\d</code> describes objects. Role vs login: in PostgreSQL a role with <code>LOGIN</code> is what people call a user. <code>psql</code> is not the server. <code>\o file</code> sends later results to a file; <code>\g file</code> sends the current query buffer once. <code>psql -W</code> forces a password prompt; <code>-w</code> never prompts. pgAdmin 4 can register many clusters, change a role password, create a tablespace, and show sessions on the Dashboard. It does not connect to <code>template0</code> by default.
       </div>
 
       <h2>10. One-minute revision</h2>

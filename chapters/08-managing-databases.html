@@ -111,7 +111,7 @@ SELECT nspname FROM pg_namespace WHERE nspname IN ('app','ops','audit');
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Database vs schema vs table. <code>search_path</code>. <code>CREATE DATABASE ... TEMPLATE</code>. Tablespace dir must exist and be empty to drop. Predefined <code>pg_*</code> roles instead of superuser. You cannot drop the database you are in.
+        <strong>🔥 Exam focus.</strong> Database vs schema vs table. <code>search_path</code>. <code>CREATE DATABASE ... TEMPLATE</code>. Tablespace dir must exist and be empty to drop. Predefined <code>pg_*</code> roles instead of superuser. You cannot drop the database you are in. A user is <code>CREATE USER name PASSWORD '…'</code> or <code>CREATE ROLE name WITH LOGIN</code> or <code>createuser -l -P</code>. <code>IDENTIFIED BY</code> is Oracle, not PostgreSQL. <code>public</code> is a reserved keyword: an unquoted table named <code>public</code> is a syntax error. An inline <code>PRIMARY KEY</code> succeeds and creates a unique index. <code>TRUNCATE fortune_teller;</code> removes all rows; the word <code>TABLE</code> is optional. <code>boolean</code> accepts <code>yes</code>/<code>no</code>, <code>on</code>/<code>off</code>, <code>1</code>/<code>0</code>, <code>t</code>/<code>f</code> (any case). <code>json</code> stores JSON; <code>jsonb</code> is the binary form.
       </div>
 
       <h2>10. One-minute revision</h2>

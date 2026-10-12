@@ -122,7 +122,7 @@ sudo -u postgres psql -d postgres -c "SELECT * FROM pg_hba_file_rules;"
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> First matching <code>pg_hba</code> line wins. Reload vs restart. <code>pg_settings</code> is the source of truth for the running value. <code>pg_ident.conf</code> is not <code>pg_hba.conf</code>.
+        <strong>🔥 Exam focus.</strong> First matching <code>pg_hba</code> line wins. A <code>host</code> line has five fields: type, database, user, address, method — <code>host all all ::1/128 md5</code> is valid; dropping the user field is not. <code>include_dir 'directory'</code> pulls in every <code>.conf</code> in that directory (quoted path). <code>ALTER SYSTEM RESET ALL;</code> clears <code>postgresql.auto.conf</code>. Reload vs restart: <code>maintenance_work_mem</code> needs a reload after you edit <code>postgresql.conf</code>. <code>log_directory</code> is the log path; <code>log_destination</code> is the kind of log. <code>temp_file_limit</code> cancels a query that spills more than that much temp disk. <code>effective_cache_size</code> is the planner’s guess of cache for index costing, not allocated RAM. <code>pg_settings</code> is the source of truth for the running value.
       </div>
 
       <h2>10. One-minute revision</h2>

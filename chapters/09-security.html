@@ -205,7 +205,7 @@ sudo -u postgres psql -d study_lab -c "SELECT extname FROM pg_extension WHERE ex
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Auth ≠ privileges. Schema <code>USAGE</code>. <code>pg_hba</code> first match. RLS: <code>ENABLE</code> then <code>CREATE POLICY</code>. Encryption: <code>CREATE EXTENSION pgcrypto</code> — one-way <code>crypt</code>, two-way <code>pgp_sym_encrypt</code>. Not TDE.
+        <strong>🔥 Exam focus.</strong> Auth ≠ privileges. Schema <code>USAGE</code>. <code>pg_hba</code> first match, five fields on a <code>host</code> line. Table grants: <code>GRANT SELECT ON ALL TABLES IN SCHEMA app TO boss;</code> — <code>GRANT SELECT ON SCHEMA</code> does not grant the tables. <code>WITH GRANT OPTION</code> lets the grantee pass that privilege on. <code>REVOKE CONNECT ON DATABASE dbname FROM public;</code> removes the default connect right from non-superusers. RLS: <code>ENABLE</code> then <code>CREATE POLICY</code>. Encryption: <code>CREATE EXTENSION pgcrypto</code> — one-way <code>crypt</code>, two-way <code>pgp_sym_encrypt</code>. Not TDE.
       </div>
 
       <h2>10. One-minute revision</h2>

@@ -130,7 +130,7 @@ sudo -u postgres psql -d postgres -c "SELECT pg_is_in_recovery();"
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Streaming = one primary = active-passive. Promote switches the writer; it does not create two. Logical pub/sub is not multi-master HA. EDB Postgres Distributed / BDR is the named multi-writer product. Patroni / EFM / repmgr still keep a single writer.
+        <strong>🔥 Exam focus.</strong> Streaming = one primary = active-passive. Promote switches the writer; it does not create two. Logical pub/sub is not multi-master HA. A subscriber can republish (<code>origin = any</code>, PostgreSQL 16+); that cascade is still one direction of apply, not two writers. EDB Postgres Distributed / BDR is the named multi-writer product. Patroni / EFM / repmgr still keep a single writer.
       </div>
 
       <h2>10. One-minute revision</h2>

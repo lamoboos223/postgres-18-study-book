@@ -186,7 +186,7 @@ psql -d postgres -c "SELECT wait_event_type, wait_event, count(*) FROM pg_stat_a
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Commit durability = WAL flush. Crash recovery = replay WAL from last checkpoint. MVCC = extra versions, not in-place overwrite. <code>wal_level</code> default in modern PostgreSQL is <code>replica</code> (enough for replication and hot standby). Old names <code>archive</code> / <code>hot_standby</code> map to <code>replica</code>.
+        <strong>🔥 Exam focus.</strong> Commit durability = WAL flush. That is the D in ACID; isolation is MVCC, not WAL. Crash recovery = replay WAL from last checkpoint. The <strong>WAL writer</strong> flushes WAL buffers to <code>pg_wal/</code>. The background writer flushes dirty <em>data</em> pages. MVCC = extra versions, not in-place overwrite. Pages that are all-visible are tracked in the visibility map, file <code>&lt;relfilenode&gt;_vm</code> (the <code>_fsm</code> file is free space). <code>wal_level</code> default in modern PostgreSQL is <code>replica</code>. Old names <code>archive</code> / <code>hot_standby</code> map to <code>replica</code>.
       </div>
       <div class="callout remember">
         <strong>Remember.</strong> WAL = diary. Checkpoint = photo. VACUUM = janitor for dead versions. AIO (PG 18) = faster reads, not optional durability.
@@ -208,6 +208,8 @@ psql -d postgres -c "SELECT wait_event_type, wait_event, count(*) FROM pg_stat_a
           <tr><td>WAL</td><td>The heap data files</td></tr>
           <tr><td>Checkpoint</td><td>A commit</td></tr>
           <tr><td>bgwriter</td><td>checkpointer</td></tr>
+          <tr><td>WAL writer</td><td>bgwriter (data pages, not WAL buffers)</td></tr>
+          <tr><td><code>relfilenode_vm</code></td><td><code>relfilenode_fsm</code> (free space)</td></tr>
           <tr><td>MVCC snapshot</td><td>“No locks exist”</td></tr>
           <tr><td><code>io_method</code></td><td>Turning off WAL</td></tr>
         </tbody>

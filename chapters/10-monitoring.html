@@ -87,7 +87,7 @@ top -u postgres
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Name <code>pg_stat_activity</code>, <code>pg_stat_database</code>, <code>pg_locks</code>. Know <code>idle in transaction</code> is dangerous. Reload after logging GUC changes when context is sighup.
+        <strong>🔥 Exam focus.</strong> Name <code>pg_stat_activity</code>, <code>pg_stat_database</code>, <code>pg_locks</code>. Know <code>idle in transaction</code> is dangerous. Reload after logging GUC changes when context is sighup. Log files land in <code>log_directory</code> when <code>logging_collector</code> is on. Vacuum progress is <code>pg_stat_progress_vacuum</code>. Standbys attached to this primary are <code>pg_stat_replication</code>. pgAdmin’s Dashboard Sessions panel is the same connection list.
       </div>
 
       <h2>10. One-minute revision</h2>

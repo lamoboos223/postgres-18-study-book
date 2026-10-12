@@ -89,7 +89,7 @@ test -d /var/lib/postgresql/18/main/pg_wal && echo "WAL dir present"
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Cluster = PGDATA. <code>initdb</code> initializes it. Multiple clusters = multiple instances. Tablespace ≠ database. File names in <code>base/</code> are OIDs/filenodes.
+        <strong>🔥 Exam focus.</strong> Cluster = PGDATA. <code>initdb</code> initializes it. Multiple clusters = multiple instances. After <code>initdb -D /edbstore</code>, set a unique port in <code>postgresql.conf</code> (<code>port = 5434</code>), not in <code>postgresql.auto.conf</code> and not with <code>ALTER SYSTEM</code> before the server can start. <code>SHOW data_directory;</code> prints PGDATA. Tablespace ≠ database. File names in <code>base/</code> are OIDs/filenodes, split at 1 GB. All-visible pages: <code>&lt;relfilenode&gt;_vm</code>.
       </div>
 
       <h2>10. One-minute revision</h2>

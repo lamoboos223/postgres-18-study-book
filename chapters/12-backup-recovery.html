@@ -117,7 +117,7 @@ ls /var/lib/postgresql/wal_archive | head
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Logical vs physical. Dump is not PITR. <code>recovery.signal</code> vs <code>standby.signal</code>. Incremental needs <code>summarize_wal</code> + <code>pg_combinebackup</code>. <code>pg_verifybackup</code> checks the manifest. Backup ≠ replica.
+        <strong>🔥 Exam focus.</strong> Logical vs physical. Dump is not PITR. <code>recovery.signal</code> vs <code>standby.signal</code>. Incremental needs <code>summarize_wal</code> + <code>pg_combinebackup</code>. <code>pg_verifybackup BACKUPDIR</code> checks the manifest (extract a tar backup first). Backup ≠ replica. <code>pg_dump</code> takes <code>ACCESS SHARE</code> and does not block ordinary readers or writers. One schema: <code>pg_dump -n schemaname</code> (<code>-N</code> excludes). Valid formats: <code>-Fd -f dir</code> and <code>-Fc</code>. Tar format is <code>-Ft</code>, not <code>-ft</code>. PITR restores an online filesystem backup plus WAL to a chosen time, including the latest WAL you still have. <code>pg_receivewal</code> can replace <code>archive_command</code>, and those streamed segments can feed PITR.
       </div>
 
       <h2>10. One-minute revision</h2>

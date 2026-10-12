@@ -96,7 +96,7 @@ WHERE c.relname = 'users';
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> <code>pg_catalog</code> vs <code>information_schema</code>. Stats views are not the same as catalogs. <code>\d</code> reads catalogs.
+        <strong>🔥 Exam focus.</strong> <code>pg_catalog</code> vs <code>information_schema</code>. Stats views are not the same as catalogs. <code>\d</code> reads catalogs. <code>pg_stat_replication</code> lists WAL senders and connected standbys. <code>pg_stat_progress_vacuum</code> shows a vacuum in progress. There is no <code>pg_stat_wal_sender</code>, <code>pg_stat_slots</code>, or <code>pg_stat_vacuum</code>. The visibility map file is <code>&lt;relfilenode&gt;_vm</code>.
       </div>
 
       <h2>10. One-minute revision</h2>

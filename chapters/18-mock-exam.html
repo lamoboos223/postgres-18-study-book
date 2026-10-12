@@ -15,7 +15,7 @@
     <main class="page">
       <p class="kicker">Appendix</p>
       <h1>Final mock exam</h1>
-      <p class="lede">Cover the answers. This is practice in the style of Essentials thinking, not leaked EDB items.</p>
+      <p class="lede">Fifty items, multiple choice, same shape as the Essentials sitting. The facts are in the chapters. These wordings are practice, not a copy of a live exam.</p>
 
       <h2>Questions</h2>
       <div class="q">
@@ -102,6 +102,195 @@
       <div class="q">
         <p><strong>20.</strong> Name the EDB product for multi-writer Postgres, and name one HA tool that still keeps a single writer.</p>
       </div>
+      <div class="q">
+        <p><strong>21.</strong> After <code>initdb -D /edbstore -W</code>, how do you put that cluster on port 5434?</p>
+        <ol type="A">
+          <li><code>ALTER SYSTEM SET port = 5434;</code> before the server has ever started</li>
+          <li><code>initdb -p 5434 -D /edbstore -W</code></li>
+          <li>Uncomment <code>port</code> in <code>postgresql.auto.conf</code></li>
+          <li>Uncomment <code>port = 5434</code> in <code>/edbstore/postgresql.conf</code></li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>22.</strong> Which <code>psql</code> meta-commands can send query output to a file?</p>
+        <ol type="A">
+          <li><code>\o</code> and <code>\g</code></li>
+          <li><code>\q</code> and <code>\f</code></li>
+          <li><code>\h</code> and <code>\z</code></li>
+          <li><code>\t</code> and <code>\q</code></li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>23.</strong> <code>psql</code> is not asking for a password. Which flag forces a prompt?</p>
+        <ol type="A"><li><code>-X</code></li><li><code>-W</code></li><li><code>-w</code></li><li><code>-x</code></li></ol>
+      </div>
+      <div class="q">
+        <p><strong>24.</strong> <code>initdb</code> without <code>-W</code>. What is the superuser password?</p>
+        <ol type="A"><li>password</li><li>postgres</li><li>the OS user’s password</li><li>blank</li></ol>
+      </div>
+      <div class="q">
+        <p><strong>25.</strong> Valid way to include a directory of configuration files?</p>
+        <ol type="A">
+          <li><code>include 'directory'</code></li>
+          <li><code>include_dir '/path/dirname'</code></li>
+          <li><code>include /path/dirname</code></li>
+          <li><code>include_dir /path/dirname</code> with no quotes</li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>26.</strong> Maximum table size with the default 8 kB page?</p>
+        <ol type="A"><li>32 TB</li><li>1 GB</li><li>unlimited</li><li>16 TB</li></ol>
+      </div>
+      <div class="q">
+        <p><strong>27.</strong> Which statement does <em>not</em> create a login role?</p>
+        <ol type="A">
+          <li><code>CREATE USER u PASSWORD 'x';</code></li>
+          <li><code>CREATE ROLE r WITH LOGIN;</code></li>
+          <li><code>createuser -l -P -U postgres u</code></li>
+          <li><code>CREATE USER u IDENTIFIED 'x';</code></li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>28.</strong> Which <code>pg_hba.conf</code> line is valid?</p>
+        <ol type="A">
+          <li><code>host all all ::1/128 md5</code></li>
+          <li><code>host all 192.168.0.1/32 md5</code></li>
+          <li><code>host postgres ::1/128 trust</code></li>
+          <li><code>host all 192.168.0.1/128 md5</code></li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>29.</strong> Grant <code>SELECT</code> on every existing table in schema <code>edbstore</code> to <code>boss</code>.</p>
+        <ol type="A">
+          <li><code>GRANT SELECT ON SCHEMA edbstore TO boss;</code></li>
+          <li><code>GRANT ALL ON SCHEMA edbstore TO boss;</code></li>
+          <li><code>GRANT SELECT TO boss ON SCHEMA edbstore;</code></li>
+          <li><code>GRANT SELECT ON ALL TABLES IN SCHEMA edbstore TO boss;</code></li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>30.</strong> View that shows a vacuum while it is running?</p>
+        <ol type="A"><li><code>pg_stat_vacuum</code></li><li><code>pg_stat_vacuumdb</code></li><li><code>pg_stat_user_vacuum</code></li><li><code>pg_stat_progress_vacuum</code></li></ol>
+      </div>
+      <div class="q">
+        <p><strong>31.</strong> Cancel a backend that uses more than 512 MB of temporary disk.</p>
+        <ol type="A"><li><code>temp_buffers</code></li><li><code>temp_page_limit</code></li><li><code>temp_file_limit</code></li><li>It cannot be limited</li></ol>
+      </div>
+      <div class="q">
+        <p><strong>32.</strong> From <code>psql</code>, show the cluster data directory.</p>
+        <ol type="A">
+          <li><code>SELECT data_dir FROM pg_settings;</code></li>
+          <li><code>SHOW DIRECTORY;</code></li>
+          <li><code>SHOW data_directory;</code></li>
+          <li><code>SELECT server_dir FROM pg_settings;</code></li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>33.</strong> <code>pg_dump</code> flag that dumps only one schema.</p>
+        <ol type="A"><li><code>-N</code></li><li><code>-S</code></li><li><code>-s</code></li><li><code>-n</code></li></ol>
+      </div>
+      <div class="q">
+        <p><strong>34.</strong> Which utility process flushes WAL buffers toward <code>pg_wal/</code>?</p>
+        <ol type="A"><li>WAL writer</li><li>background writer</li><li>archiver</li><li>autovacuum</li></ol>
+      </div>
+      <div class="q">
+        <p><strong>35.</strong> <code>DROP TABLESPACE t1;</code> on a hot standby, after the primary created <code>t1</code>.</p>
+        <ol type="A">
+          <li>Tablespace does not exist</li>
+          <li><code>cannot execute DROP TABLESPACE in a read-only transaction</code></li>
+          <li>The drop succeeds on both servers</li>
+          <li>The drop succeeds only on the standby</li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>36.</strong> Which statements about pgAdmin 4 are true? (1) It can administer more than one cluster. (2) It connects to <code>template0</code> by default. (3) It can change a role password. (4) It cannot create a tablespace.</p>
+        <ol type="A"><li>1, 2, 4</li><li>2, 4</li><li>1, 4</li><li>1, 3</li></ol>
+      </div>
+      <div class="q">
+        <p><strong>37.</strong> Check a <code>pg_basebackup</code> against its manifest.</p>
+        <ol type="A"><li><code>pg_basebackup --check</code></li><li><code>pg_verifybackup</code></li><li><code>pg_check</code></li><li>No such tool</li></ol>
+      </div>
+      <div class="q">
+        <p><strong>38. True / False.</strong> PostgreSQL 18 logical replication cannot cascade.</p>
+      </div>
+      <div class="q">
+        <p><strong>39.</strong> Default size at which a table or index file is split into another segment?</p>
+        <ol type="A"><li>2 GB</li><li>1 GB</li><li>512 MB</li><li>It never splits</li></ol>
+      </div>
+      <div class="q">
+        <p><strong>40.</strong> Which ACID property does write-ahead logging provide?</p>
+        <ol type="A"><li>Isolation</li><li>Concurrency</li><li>Transaction management</li><li>Durability</li></ol>
+      </div>
+      <div class="q">
+        <p><strong>41.</strong> <code>START TRANSACTION;</code> on a hot standby.</p>
+        <ol type="A">
+          <li>It succeeds</li>
+          <li>It is rejected</li>
+          <li><code>Only read-only statements are allowed</code> on this statement itself</li>
+          <li><code>Cannot execute on hot standby</code></li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>42.</strong> <code>initdb</code> option for a custom WAL segment size.</p>
+        <ol type="A"><li><code>--waldir</code></li><li><code>--wal-segsize</code></li><li><code>-X</code></li><li>No such option</li></ol>
+      </div>
+      <div class="q">
+        <p><strong>43.</strong> <code>GRANT SELECT ON t TO enterprisedb WITH GRANT OPTION;</code> means:</p>
+        <ol type="A">
+          <li>The grantee becomes a superuser</li>
+          <li>It is required syntax for every grant</li>
+          <li>It grants only some columns</li>
+          <li>The grantee may grant that <code>SELECT</code> to others</li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>44.</strong> Does <code>pg_dump</code> block ordinary readers and writers?</p>
+        <ol type="A"><li>Yes, both</li><li>No</li><li>Readers only</li><li>Writers only</li></ol>
+      </div>
+      <div class="q">
+        <p><strong>45.</strong> Which type stores JSON documents?</p>
+        <ol type="A"><li><code>java</code></li><li><code>xml</code></li><li><code>json</code></li><li><code>doc</code></li></ol>
+      </div>
+      <div class="q">
+        <p><strong>46.</strong> Clear every setting made with <code>ALTER SYSTEM</code>.</p>
+        <ol type="A">
+          <li><code>ALTER SYSTEM RESET;</code></li>
+          <li><code>ALTER SYSTEM RESET ALL;</code></li>
+          <li><code>ALTER DATABASE RESET ALL;</code></li>
+          <li><code>ALTER DATABASE RESET CONFIG;</code></li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>47.</strong> You saved a new <code>maintenance_work_mem</code> in <code>postgresql.conf</code> and the value did not change. Why?</p>
+        <ol type="A">
+          <li>A reload is required</li>
+          <li><code>RESET</code> in <code>psql</code> loads the file</li>
+          <li>The database must be reset</li>
+          <li>Wait five minutes</li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>48.</strong> <code>CREATE TABLE job_history (job_id integer NOT NULL PRIMARY KEY, job_start date, job_end date, active boolean);</code></p>
+        <ol type="A">
+          <li><code>boolean</code> is not a type</li>
+          <li><code>NOT NULL</code> must follow <code>PRIMARY KEY</code></li>
+          <li>It succeeds and creates an index for the primary key</li>
+          <li>A primary key cannot be inline</li>
+        </ol>
+      </div>
+      <div class="q">
+        <p><strong>49.</strong> You promote the hot standby. What happens to sessions already connected to it?</p>
+        <ol type="A"><li>They are reset</li><li>They see “server restarted”</li><li>They are disconnected</li><li>They stay connected</li></ol>
+      </div>
+      <div class="q">
+        <p><strong>50.</strong> Rebuild indexes on a live table without blocking <code>INSERT</code>, <code>UPDATE</code>, and <code>DELETE</code>.</p>
+        <ol type="A">
+          <li><code>REINDEX TABLE CONCURRENTLY tablename;</code></li>
+          <li><code>REINDEX TABLE tablename;</code></li>
+          <li><code>REINDEX CONCURRENTLY tablename;</code></li>
+          <li>No such option</li>
+        </ol>
+      </div>
 
       <h2>Answer key</h2>
       <div class="q">
@@ -125,6 +314,36 @@
         <p><strong>18 False.</strong> Cascade is async only. The mid-tier standby streams to others to offload the primary.</p>
         <p><strong>19 False.</strong> <code>hot_standby</code> is reads on a replica in recovery. One primary still writes. Two writers on streaming is split-brain, not HA.</p>
         <p><strong>20</strong> EDB Postgres Distributed (PGD / BDR). Patroni, EFM, or repmgr still fail over <em>one</em> writer.</p>
+        <p><strong>21 D.</strong> Port lives in <code>postgresql.conf</code>. <code>initdb</code> has no <code>-p</code>. <code>ALTER SYSTEM</code> needs a running server.</p>
+        <p><strong>22 A.</strong> <code>\o</code> redirects later results. <code>\g file</code> runs the buffer once into a file.</p>
+        <p><strong>23 B.</strong> <code>-W</code> prompts. <code>-w</code> never prompts. <code>-X</code> skips <code>.psqlrc</code>. <code>-x</code> is expanded output.</p>
+        <p><strong>24 D.</strong> No password is set. The OS name is the default role name.</p>
+        <p><strong>25 B.</strong> <code>include_dir</code> plus a quoted path. <code>include</code> is one file.</p>
+        <p><strong>26 A.</strong> 32 TB at 8 kB pages. A single field is 1 GB. The database itself is not capped at 32 TB.</p>
+        <p><strong>27 D.</strong> <code>IDENTIFIED</code> is not PostgreSQL syntax. Use <code>PASSWORD</code>.</p>
+        <p><strong>28 A.</strong> A <code>host</code> line needs type, database, user, address, method.</p>
+        <p><strong>29 D.</strong> <code>ON SCHEMA</code> grants schema rights (<code>USAGE</code>, <code>CREATE</code>), not table <code>SELECT</code>.</p>
+        <p><strong>30 D.</strong></p>
+        <p><strong>31 C.</strong> <code>temp_file_limit</code>. <code>temp_buffers</code> is memory for temp tables.</p>
+        <p><strong>32 C.</strong> Also <code>SELECT setting FROM pg_settings WHERE name = 'data_directory';</code></p>
+        <p><strong>33 D.</strong> <code>-n</code> includes a schema. <code>-N</code> excludes. <code>-s</code> is schema-only (no data). <code>-S</code> is a superuser name for disable-triggers.</p>
+        <p><strong>34 A.</strong> The background writer writes dirty heap pages. The archiver copies finished segments.</p>
+        <p><strong>35 B.</strong> The tablespace exists because WAL replay created it. The standby cannot drop it.</p>
+        <p><strong>36 D.</strong> Many clusters, and it can change passwords. Default database is <code>postgres</code>, not <code>template0</code>. Tablespaces can be created in the UI.</p>
+        <p><strong>37 B.</strong> Extract a tar-format backup into a directory first. <code>pg_verifybackup</code> reads that directory.</p>
+        <p><strong>38 False.</strong> Since PostgreSQL 16 a publication can forward changes it received (<code>origin = any</code>, the default).</p>
+        <p><strong>39 B.</strong> 1 GB segments: <code>relfilenode</code>, <code>relfilenode.1</code>, …</p>
+        <p><strong>40 D.</strong></p>
+        <p><strong>41 A.</strong> The transaction starts read-only. A later <code>INSERT</code> fails. <code>START TRANSACTION READ WRITE</code> fails during recovery.</p>
+        <p><strong>42 B.</strong> <code>-X</code> / <code>--waldir</code> relocates WAL. Segment size is fixed at <code>initdb</code>.</p>
+        <p><strong>43 D.</strong></p>
+        <p><strong>44 B.</strong> <code>ACCESS SHARE</code>, same family as <code>SELECT</code>. <code>DROP</code> / <code>VACUUM FULL</code> still wait.</p>
+        <p><strong>45 C.</strong> Prefer <code>jsonb</code> when you will index it. <code>xml</code> is a different type.</p>
+        <p><strong>46 B.</strong> Then reload or restart, depending on each parameter.</p>
+        <p><strong>47 A.</strong> Saving the file does not apply it. This parameter does not need a restart.</p>
+        <p><strong>48 C.</strong> <code>boolean</code> is valid. Inline <code>PRIMARY KEY</code> builds a unique index.</p>
+        <p><strong>49 D.</strong> <code>pg_ctl promote</code> / <code>pg_promote()</code> ends recovery without dropping existing sessions.</p>
+        <p><strong>50 A.</strong> Plain <code>REINDEX TABLE</code> takes a lock that blocks writes.</p>
       </div>
 
       <div class="pager">

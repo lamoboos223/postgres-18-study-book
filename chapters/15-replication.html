@@ -130,7 +130,7 @@ sudo -u postgres psql -d study_lab -c "SELECT count(*) FROM app.users;"
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Streaming = primary/standby = active-passive = one writer. Not master-master. Physical vs logical (pub/sub). Cascading is async. Slot vs <code>wal_keep_size</code>. <code>standby.signal</code>. Sync can stall COMMITs. Promote is not EFM/repmgr.
+        <strong>🔥 Exam focus.</strong> Streaming = primary/standby = active-passive = one writer. Not master-master. Physical vs logical (pub/sub). Physical cascading is async. Since PostgreSQL 16, logical replication can cascade too (<code>origin = any</code> on a publication); “logical replication cannot cascade” is false on 18. Slot vs <code>wal_keep_size</code>. <code>standby.signal</code>. Sync can stall COMMITs. Promote is not EFM/repmgr. On a hot standby, <code>START TRANSACTION;</code> succeeds (read-only). <code>DROP TABLESPACE</code> fails with <code>cannot execute DROP TABLESPACE in a read-only transaction</code>. Promotion does not disconnect sessions already on the standby. Senders are listed in <code>pg_stat_replication</code>.
       </div>
 
       <h2>10. One-minute revision</h2>

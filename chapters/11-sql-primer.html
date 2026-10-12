@@ -113,7 +113,7 @@ SELECT relname, last_analyze, n_live_tup FROM pg_stat_user_tables;
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Default isolation. WAL on commit. DDL / DML / DCL / TCL. Virtual generated vs stored. <code>WITHOUT OVERLAPS</code>. Domain ≠ table. <code>EXPLAIN ANALYZE</code> executes.
+        <strong>🔥 Exam focus.</strong> Default isolation. WAL on commit. DDL / DML / DCL / TCL. Virtual generated vs stored. <code>WITHOUT OVERLAPS</code>. Domain ≠ table. <code>EXPLAIN ANALYZE</code> executes. Inclusive range: <code>BETWEEN 100 AND 2000</code> or <code>&gt;= 100 AND &lt;= 2000</code>. Dollar quotes must use the same tag at both ends (<code>$$Big$$</code>, <code>$right$Big$right$</code>). <code>effective_cache_size</code> is what the planner assumes is cached when it costs an index scan. JSON document storage is the <code>json</code> / <code>jsonb</code> types.
       </div>
 
       <h2>10. One-minute revision</h2>

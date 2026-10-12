@@ -83,7 +83,7 @@ SELECT relname, n_dead_tup, vacuum_count, autovacuum_count FROM pg_stat_user_tab
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> VACUUM vs VACUUM FULL vs ANALYZE vs REINDEX vs <code>vacuumdb</code>. Wraparound: vacuum every ~2 billion xids. <code>vacuum_freeze_min_age</code> / <code>vacuum_freeze_table_age</code>. v17+ dropped the 1 GB vacuum mem cap.
+        <strong>🔥 Exam focus.</strong> VACUUM vs VACUUM FULL vs ANALYZE vs REINDEX vs <code>vacuumdb</code>. Wraparound: vacuum every ~2 billion xids. <code>vacuum_freeze_min_age</code> / <code>vacuum_freeze_table_age</code>. v17+ dropped the 1 GB vacuum mem cap. Watch a running vacuum in <code>pg_stat_progress_vacuum</code>. Skip one table with <code>ALTER TABLE t SET (autovacuum_enabled = false);</code> — wraparound vacuum can still run. Rebuild indexes without blocking writes: <code>REINDEX TABLE CONCURRENTLY tablename;</code>
       </div>
       <div class="callout remember">
         <strong>Remember.</strong> VACUUM = reclaim visibility leftovers for normal operation. VACUUM FULL = rewrite.

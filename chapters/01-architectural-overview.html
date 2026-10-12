@@ -219,7 +219,7 @@ dpkg -l 'postgresql*' 2>/dev/null | grep ^ii
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> Memorize the official definition: a cluster is all databases managed by one server instance, stored in one data directory. Know that <code>template0</code>/<code>template1</code>/<code>postgres</code> appear after <code>initdb</code>. Know process-per-connection.
+        <strong>🔥 Exam focus.</strong> Memorize the official definition: a cluster is all databases managed by one server instance, stored in one data directory. Know that <code>template0</code>/<code>template1</code>/<code>postgres</code> appear after <code>initdb</code>. The database named <code>postgres</code> is the one you connect to; the choices “edb”, “template”, and “templates” are not created. Know process-per-connection. Default page size 8 kB: a table tops out at 32 TB, and each relation file is split into 1 GB segments.
       </div>
       <ul>
         <li>The server executable is <code>postgres</code>. People still say “postmaster” for the supervisor — Chapter 2 will use both.</li>

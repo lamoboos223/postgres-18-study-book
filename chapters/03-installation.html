@@ -127,7 +127,7 @@ sudo apt-cache policy postgresql-18
 
       <h2>9. Exam focus</h2>
       <div class="callout exam">
-        <strong>🔥 Exam focus.</strong> <code>initdb</code> creates the cluster. Packages may hide that. Know data directory vs config directory on Debian. Know <code>pg_ctl</code> vs systemd. Know you must be the PostgreSQL OS user (or use sudo) to run <code>initdb</code> by hand.
+        <strong>🔥 Exam focus.</strong> <code>initdb</code> creates the cluster. Packages may hide that. Without <code>-W</code>, the superuser password is blank (the OS user name is the role name, not the password). WAL segment size is <code>initdb --wal-segsize</code> (default 16 MB, power of two, init time only). <code>-X</code> / <code>--waldir</code> only moves the WAL directory. There is no <code>initdb -p</code> for the port. Know data directory vs config directory on Debian. Know <code>pg_ctl</code> vs systemd.
       </div>
 
       <h2>10. One-minute revision</h2>
